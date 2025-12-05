@@ -3,7 +3,9 @@
     "@eslint/config-array": "^0.23.0",
     "@eslint/object-schema": "^3.0.0",
     "domexception": "^4.0.0",
+    "eslint": "^9.39.1",
     "glob": "^13.0.0",
+    "lru-cache": "^11.2.4",
     "rimraf": "^6.1.2"
   }
 }

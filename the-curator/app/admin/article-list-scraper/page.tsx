@@ -42,7 +42,7 @@ export default function ArticleListScraperPage() {
     }
   }
 
-  async function handleScrapeArticle(articleUrl: string, articleId: string) {
+  async function handleScrapeArticle(articleUrl: string) {
     // Open scraper-url-test page in new tab with the URL pre-filled
     const encodedUrl = encodeURIComponent(articleUrl);
     window.open(`/admin/scraper-url-test?url=${encodedUrl}`, '_blank');
@@ -122,7 +122,7 @@ export default function ArticleListScraperPage() {
                     <td className="px-4 py-3 text-center">
                       <button
                         className="bg-green-600 text-white px-4 py-1 rounded text-sm hover:bg-green-700"
-                        onClick={() => handleScrapeArticle(article.url, article.articleId)}
+                        onClick={() => handleScrapeArticle(article.url)}
                       >
                         Scrape
                       </button>
