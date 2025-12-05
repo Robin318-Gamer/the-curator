@@ -138,7 +138,7 @@ export default function ArticleListScraperPage() {
       {/* Empty State */}
       {!loading && articles.length === 0 && !error && (
         <div className="text-center py-12 text-gray-500">
-          <p className="text-lg">Click "Fetch All Articles" to discover articles from all HK01 categories</p>
+            <p className="text-lg">Click &quot;Fetch All Articles&quot; to discover articles from all HK01 categories</p>
         </div>
       )}
     </div>
