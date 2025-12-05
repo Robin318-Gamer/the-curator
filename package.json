@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@eslint/config-array": "^0.23.0",
+    "@eslint/object-schema": "^3.0.0",
+    "domexception": "^4.0.0",
+    "glob": "^13.0.0",
+    "rimraf": "^6.1.2"
+  }
+}
