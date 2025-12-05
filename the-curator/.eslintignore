@@ -1,0 +1,10 @@
+node_modules/
+.next/
+dist/
+out/
+build/
+coverage/
+.nyc_output/
+.vercel/
+.turbo/
+**/*.min.js

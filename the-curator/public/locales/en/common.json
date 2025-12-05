@@ -1,0 +1,41 @@
+{
+  "common": {
+    "appName": "The Curator",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close"
+  },
+  "navigation": {
+    "home": "Home",
+    "news": "News",
+    "admin": "Admin",
+    "login": "Login",
+    "logout": "Logout"
+  },
+  "home": {
+    "title": "Welcome to The Curator",
+    "subtitle": "Your curated source for Hong Kong news with AI-powered summaries",
+    "browseNews": "Browse News",
+    "adminLogin": "Admin Login"
+  },
+  "news": {
+    "title": "Latest News",
+    "readMore": "Read More",
+    "source": "Source",
+    "publishedAt": "Published",
+    "category": "Category",
+    "noArticles": "No articles available"
+  },
+  "admin": {
+    "dashboard": "Dashboard",
+    "articles": "Articles",
+    "sources": "Sources",
+    "scraper": "Scraper Test",
+    "logs": "Activity Logs"
+  }
+}
