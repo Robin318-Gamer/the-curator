@@ -38,7 +38,7 @@ export interface NewslistEntry {
   source_article_id?: string | null;
   url: string;
   status: NewslistStatus;
-  meta?: Record<string, any> | null;
+  meta?: Record<string, unknown> | null;
   error_log?: string | null;
   resolved_article_id?: string | null;
   attempt_count: number;
@@ -92,7 +92,7 @@ export interface Article {
   main_image_caption?: string;
   
   // Extensibility
-  metadata?: Record<string, any>; // Source-specific fields
+  metadata?: Record<string, unknown>; // Source-specific fields
   
   // Scraping Status
   scraped_at: string;
@@ -171,14 +171,14 @@ export interface ScraperCategory {
   priority: number;
   is_enabled: boolean;
   last_run_at?: string | null;
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
   source?: {
     source_key: string;
     name: string;
     base_url: string;
-    scraper_config?: Record<string, any> | null;
+    scraper_config?: Record<string, unknown> | null;
   };
 }
 
