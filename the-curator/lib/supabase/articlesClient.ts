@@ -70,33 +70,6 @@ export async function checkArticleExists(sourceArticleId: string): Promise<boole
 }
 
 /**
- * Convert content string format (from scraper) to JSONB array format (for database)
- * Scraper returns: "### Heading1\n\nParagraph text\n\n### Heading2\n\nMore text"
- * Database expects: [{type: 'heading', text: '...'}, {type: 'paragraph', text: '...'}]
- */
-function parseContentToJSON(contentString: string): Array<{type: string; text: string}> {
-  if (!contentString) return [];
-  
-  const blocks: Array<{type: string; text: string}> = [];
-  const parts = contentString.split('\n\n').filter(p => p.trim());
-  
-  for (const part of parts) {
-    if (part.startsWith('### ')) {
-      // Heading
-      const headingText = part.replace('### ', '').trim();
-      if (headingText) {
-        blocks.push({ type: 'heading', text: headingText });
-      }
-    } else if (part.trim()) {
-      // Paragraph
-      blocks.push({ type: 'paragraph', text: part.trim() });
-    }
-  }
-  
-  return blocks;
-}
-
-/**
  * Create a new article in the database
  * Converts ScrapedArticle (from scraper) to Article (database format)
  * 
@@ -111,8 +84,8 @@ export async function createArticle(
   try {
     const sourceId = await getHK01SourceId();
 
-    // Convert content string to JSONB array format
-    const contentArray = parseContentToJSON(scrapedArticle.content || '');
+    // Content is already in JSONB array format from scraper
+    const contentArray = scrapedArticle.content || [];
     
     // Extract first 200 characters for excerpt
     let excerpt = '';
@@ -343,25 +316,26 @@ export async function importArticle(
   message: string;
   error?: string;
 }> {
+  const manageStatus = options?.manageNewslistStatus !== false;
+  const skipProcessingStatus = options?.skipProcessingStatus === true;
+  const articleId = scrapedArticle.articleId ?? '';
+  
   try {
-    const manageStatus = options?.manageNewslistStatus !== false;
-    const skipProcessingStatus = options?.skipProcessingStatus === true;
-
-    if (manageStatus && !skipProcessingStatus) {
-      await markNewslistProcessing(scrapedArticle.articleId);
+    if (manageStatus && !skipProcessingStatus && articleId) {
+      await markNewslistProcessing(articleId);
     }
 
     // Check if article already exists
-    const exists = await checkArticleExists(scrapedArticle.articleId);
+    const exists = articleId ? await checkArticleExists(articleId) : false;
 
     if (exists) {
-      if (manageStatus) {
-        await markNewslistExisting(scrapedArticle.articleId);
+      if (manageStatus && articleId) {
+        await markNewslistExisting(articleId);
       }
       return {
         success: true,
         isNew: false,
-        message: `Article ${scrapedArticle.articleId} already exists in database`,
+        message: `Article ${articleId} already exists in database`,
       };
     }
 
@@ -387,8 +361,8 @@ export async function importArticle(
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Error importing article:', errorMessage);
 
-    if (manageStatus) {
-      await markNewslistFailed(scrapedArticle.articleId, errorMessage);
+    if (manageStatus && articleId) {
+      await markNewslistFailed(articleId, errorMessage);
     }
 
     return {
@@ -436,7 +410,7 @@ export async function batchImportArticles(
     } else {
       results.failed++;
       results.errors.push({
-        articleId: scrapedArticle.articleId,
+        articleId: scrapedArticle.articleId ?? 'unknown',
         error: result.error || 'Unknown error',
       });
     }

@@ -7,10 +7,13 @@
 // ===== NEWS SOURCE =====
 export interface NewsSource {
   id: string;
-  source_key: string; // 'hk01', 'mingpao', 'orientaldaily'
+  source_key?: string; // 'hk01', 'mingpao', 'orientaldaily'
   name: string; // 'HK01', 'Ming Pao'
   base_url: string; // 'https://www.hk01.com'
-  scraper_config: {
+  category?: string;
+  language?: string;
+  active?: boolean;
+  scraper_config?: {
     selectors: {
       title: string;
       author?: string;
@@ -24,7 +27,23 @@ export interface NewsSource {
       content?: string;
     };
   };
-  is_active: boolean;
+  list_page_config?: {
+    listUrl: string;
+    selectors: {
+      articleLinks: string;
+      articleId: string;
+    };
+  };
+  article_page_config?: {
+    selectors: {
+      title: string;
+      content: string;
+      author?: string;
+      publishDate?: string;
+      category?: string;
+    };
+  };
+  is_active?: boolean;
   created_at: string;
   updated_at: string;
 }

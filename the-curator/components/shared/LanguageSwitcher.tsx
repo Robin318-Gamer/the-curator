@@ -1,14 +1,15 @@
 "use client";
 
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { localeNames, locales, type Locale } from '@/lib/config/i18n';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { defaultLocale, localeNames, locales, type Locale } from '@/lib/config/i18n';
 
 export default function LanguageSwitcher() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const currentLocale = (router.locale ?? 'en') as Locale;
+  // Attempt to detect locale from pathname; default to defaultLocale
+  const pathLocale = locales.find((loc) => pathname?.startsWith(`/${loc}`));
+  const currentLocale: Locale = pathLocale ?? defaultLocale;
   const queryString = searchParams?.toString() ?? '';
   const href = queryString ? `${pathname}?${queryString}` : pathname;
 

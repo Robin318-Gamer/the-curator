@@ -176,9 +176,6 @@ export default function ScraperTestPage() {
                     <span className="font-medium">Base URL:</span>{' '}
                     <span className="text-gray-600">{selectedSource.base_url}</span>
                   </div>
-                  <div>
-                    <span className="font-medium">Language:</span> {selectedSource.language}
-                  </div>
                 </div>
               </div>
             )}

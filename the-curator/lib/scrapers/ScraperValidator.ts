@@ -11,6 +11,13 @@ export interface ExpectedArticleData {
 
 export class ScraperValidator {
   /**
+   * Convert content blocks to string for comparison
+   */
+  private static contentToString(content: Array<{ type: 'heading' | 'paragraph'; text: string }>): string {
+    return content.map(block => block.text).join('\n\n');
+  }
+
+  /**
    * Validate scraped data against expected data
    */
   static validate(
@@ -39,13 +46,14 @@ export class ScraperValidator {
     });
 
     // Validate content (first 100 chars for preview)
+    const actualContentString = this.contentToString(actual.content);
     const expectedContentPreview = expected.content.substring(0, 100);
-    const actualContentPreview = actual.content.substring(0, 100);
+    const actualContentPreview = actualContentString.substring(0, 100);
     results.push({
       field: 'content',
       expected: expectedContentPreview + '...',
       actual: actualContentPreview + '...',
-      match: this.fuzzyMatch(expected.content, actual.content, 0.8),
+      match: this.fuzzyMatch(expected.content, actualContentString, 0.8),
     });
 
     // Validate author (if provided)
@@ -72,8 +80,8 @@ export class ScraperValidator {
     results.push({
       field: 'publishedDate',
       expected: expected.publishedDate,
-      actual: actual.publishedDate,
-      match: this.fuzzyMatch(expected.publishedDate, actual.publishedDate),
+      actual: actual.publishedDate || '',
+      match: this.fuzzyMatch(expected.publishedDate, actual.publishedDate || ''),
     });
 
     // Validate images count
@@ -81,8 +89,8 @@ export class ScraperValidator {
       results.push({
         field: 'images',
         expected: `${expected.images.length} images`,
-        actual: `${actual.images?.length || 0} images`,
-        match: (actual.images?.length || 0) >= expected.images.length,
+        actual: `${actual.articleImageList?.length || 0} images`,
+        match: (actual.articleImageList?.length || 0) >= expected.images.length,
       });
     }
 

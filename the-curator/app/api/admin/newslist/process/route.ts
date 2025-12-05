@@ -104,7 +104,13 @@ export async function POST(request: NextRequest) {
         await new Promise(resolve => setTimeout(resolve, 2500));
         const html = await page.content();
 
-        const sourceKey = entry.source?.source_key ?? "hk01";
+          // Normalize entry.source whether DB returned an object or an array
+          let sourceKey = "hk01";
+          const srcCandidate = Array.isArray(entry.source) ? entry.source[0] : entry.source;
+          if (srcCandidate && typeof srcCandidate === "object") {
+            // use a type assertion to avoid TS narrowing to `never` for unknown DB shapes
+            sourceKey = (srcCandidate as any)?.source_key ?? "hk01";
+          }
         const scraper = new ArticleScraper(SOURCE_MAP[sourceKey as keyof typeof SOURCE_MAP] ?? hk01SourceConfig);
         const scrapeResult = await scraper.scrapeArticle(html, entry.url);
 

@@ -24,6 +24,9 @@ interface ArticleEntry {
   status: string;
   source_id: string;
   attempt_count: number;
+  last_processed_at?: string;
+  error_log?: string;
+  resolved_article_id?: string;
 }
 
 async function fetchPageHtml(url: string): Promise<string> {
@@ -53,9 +56,11 @@ async function fetchPageHtml(url: string): Promise<string> {
 
 function buildScraperSource(category: ScraperCategory) {
   const baseSource = category.source ?? hk01SourceConfig;
+  const baseSourceAny = baseSource as Record<string, unknown>;
   const selectors =
     (category.source?.scraper_config as { selectors?: Record<string, string> })?.selectors ??
-    baseSource.article_page_config.selectors;
+    // if baseSource doesn't expose article_page_config, fall back safely
+    ((baseSourceAny?.article_page_config as Record<string, unknown>)?.selectors ?? hk01SourceConfig.article_page_config?.selectors ?? {});
 
   return {
     ...hk01SourceConfig,

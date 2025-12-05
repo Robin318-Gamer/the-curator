@@ -23,6 +23,7 @@ type ApiResponse = {
   pageSize: number;
   categories: string[];
   subCategoriesByCategory: Record<string, string[]>;
+  message?: string;
 };
 
 const PAGE_SIZE = 12;

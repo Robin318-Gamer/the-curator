@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import type { NewsSource, ScrapedArticle, ScrapeResult } from '@/lib/types/database';
+import type { NewsSource, ScrapeResult } from '@/lib/types/database';
 
 export class ArticleScraper {
   private source: NewsSource;
@@ -17,7 +17,18 @@ export class ArticleScraper {
 
     try {
       const $ = cheerio.load(html);
-      const rawSelectors = this.source.article_page_config.selectors ?? {};
+      type SelectorConfig = {
+        title?: string;
+        content?: string;
+        author?: string;
+        author_selector?: string;
+        publishDate?: string;
+        published_date?: string;
+        category?: string;
+        breadcrumb_channel?: string;
+        breadcrumb_zone?: string;
+      };
+      const rawSelectors: SelectorConfig = this.source.article_page_config?.selectors ?? {};
       const selectors = {
         title: rawSelectors.title ?? 'h1',
         author: rawSelectors.author ?? rawSelectors.author_selector ?? '[data-testid="article-author"]',
@@ -175,7 +186,8 @@ export class ArticleScraper {
       console.log('[Scraper] Total article images found:', articleImageList.length);
 
       // Extract content - get all paragraphs and headings while preserving structure
-      let content = '';
+      const contentBlocks: Array<{ type: 'heading' | 'paragraph'; text: string }> = [];
+      let contentText = '';
       if (selectors.content) {
         const contentElement = $(selectors.content);
         
@@ -187,10 +199,11 @@ export class ArticleScraper {
             const text = $(elem).text().trim();
             if (text) {
               if (tagName === 'h3') {
-                // Mark headings with a special prefix so we can style them later
-                content += `### ${text}\n\n`;
+                contentBlocks.push({ type: 'heading', text });
+                contentText += `### ${text}\n\n`;
               } else if (tagName === 'p') {
-                content += text + '\n\n';
+                contentBlocks.push({ type: 'paragraph', text });
+                contentText += text + '\n\n';
               }
             }
           });
@@ -199,18 +212,23 @@ export class ArticleScraper {
           contentElement.find('p').each((_, elem) => {
             const text = $(elem).text().trim();
             if (text) {
-              content += text + '\n\n';
+              contentBlocks.push({ type: 'paragraph', text });
+              contentText += text + '\n\n';
             }
           });
         }
 
         // Fallback: if no content found, get all text content
-        if (!content) {
-          content = contentElement.text().trim();
+        if (contentBlocks.length === 0) {
+          const text = contentElement.text().trim();
+          if (text) {
+            contentBlocks.push({ type: 'paragraph', text });
+            contentText = text;
+          }
         }
       }
 
-      if (!content) {
+      if (contentBlocks.length === 0) {
         throw new Error(`Content not found with selector: ${selectors.content}`);
       }
 
@@ -244,7 +262,7 @@ export class ArticleScraper {
       }
 
       // Extract tags from article-tag
-      let tags: string[] = [];
+      const tags: string[] = [];
       $('[data-testid="article-tag"] a').each((_, el) => {
         const tagText = $(el).find('span').text().trim();
         if (tagText && !tags.includes(tagText)) {
@@ -254,8 +272,8 @@ export class ArticleScraper {
 
       // Extract summary (first paragraph or meta description)
       let summary = '';
-      if (content) {
-        summary = content.split('\n\n')[0].substring(0, 200);
+      if (contentText) {
+        summary = contentText.split('\n\n')[0].substring(0, 200);
       }
 
       const executionTime = Date.now() - startTime;
@@ -265,18 +283,17 @@ export class ArticleScraper {
         data: {
           articleId: articleId || undefined,
           title,
-          content: content.trim(),
+          content: contentBlocks,
           author: author || undefined,
           category: category || undefined,
           subCategory: subCategory || undefined,
           publishedDate,
-          updateDate: updateDate || undefined,
+          updatedDate: updateDate || undefined,
           mainImageUrl: mainImageFull || undefined,
           mainImageCaption: mainImageCaption || undefined,
-          images: images.length > 0 ? images : undefined,
           articleImageList: articleImageList.length > 0 ? articleImageList : undefined,
           tags: tags.length > 0 ? tags : undefined,
-          summary,
+          excerpt: summary || undefined,
         },
         executionTime,
       };
@@ -293,10 +310,20 @@ export class ArticleScraper {
   /**
    * Update scraper selectors
    */
-  updateSelectors(selectors: Partial<NewsSource['article_page_config']['selectors']>) {
-    this.source.article_page_config.selectors = {
-      ...this.source.article_page_config.selectors,
-      ...selectors,
-    };
+  updateSelectors(selectors: Partial<NonNullable<NewsSource['article_page_config']>['selectors']>) {
+    if (!this.source.article_page_config) {
+      this.source.article_page_config = {
+        selectors: {
+          title: 'h1',
+          content: '#article-content-section',
+          ...selectors,
+        },
+      };
+    } else {
+      this.source.article_page_config.selectors = {
+        ...this.source.article_page_config.selectors,
+        ...selectors,
+      };
+    }
   }
 }

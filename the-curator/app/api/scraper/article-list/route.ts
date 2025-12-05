@@ -6,7 +6,7 @@ import { supabase, supabaseAdmin } from '@/lib/db/supabase';
 const HK01_ARTICLE_PATTERN = /^https?:\/\/www\.hk01\.com\/([^\/]+)\/(\d{8})\/(.+)$/;
 const HK01_CHANNEL_PATTERN = /^https?:\/\/www\.hk01\.com\/channel\/(\d+)\/(.+)$/;
 
-export async function POST(req: NextRequest) {
+export async function POST(_req: NextRequest) {
   let browser;
   try {
     const db = supabaseAdmin ?? supabase;
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
           const { error: insertError } = await db
             .from('newslist')
             .upsert(chunk, {
-              onConflict: ['source_id', 'source_article_id'],
+              onConflict: 'source_id,source_article_id',
               ignoreDuplicates: true,
             });
 

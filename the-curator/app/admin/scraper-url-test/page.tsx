@@ -1,13 +1,13 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-export default function ScraperUrlTestPage() {
+function ScraperUrlTestContent() {
   const searchParams = useSearchParams();
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -19,6 +19,7 @@ export default function ScraperUrlTestPage() {
       // Auto-trigger scraping if URL is provided
       handleTest(urlParam);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   async function handleTest(urlToTest?: string) {
@@ -39,8 +40,8 @@ export default function ScraperUrlTestPage() {
       } else {
         setResult(data.data);
       }
-    } catch (err: any) {
-      setError(err.message || String(err));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -75,15 +76,30 @@ export default function ScraperUrlTestPage() {
           message: data.error || data.message || 'Failed to save article',
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setImportStatus({
         success: false,
-        message: err.message || 'Failed to save article',
+        message: err instanceof Error ? err.message : 'Failed to save article',
       });
     } finally {
       setImporting(false);
     }
   }
+
+  // Type assertions for result properties
+  const resultData = result as {
+    articleId?: string;
+    title?: string;
+    author?: string;
+    category?: string;
+    subCategory?: string;
+    publishedDate?: string;
+    updateDate?: string;
+    tags?: string[];
+    images?: string[];
+    articleImageList?: Array<{ url: string; caption?: string }>;
+    content?: Array<{ type: string; text: string }> | string;
+  } | null;
 
   return (
     <div className="max-w-2xl mx-auto py-10 px-4">
@@ -100,11 +116,11 @@ export default function ScraperUrlTestPage() {
       <button
         className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
         disabled={loading || !url}
-        onClick={handleTest}
+        onClick={() => handleTest()}
       >
         {loading ? 'Testing...' : 'Run Scraper'}
       </button>
-      {result && (
+      {resultData && (
         <button
           className="ml-2 bg-green-600 text-white px-4 py-2 rounded disabled:opacity-50 hover:bg-green-700"
           disabled={importing}
@@ -121,33 +137,35 @@ export default function ScraperUrlTestPage() {
           {importStatus.message}
         </div>
       )}
-      {result && (
+      {resultData && (
         <div className="mt-8 border rounded p-4 bg-gray-50">
           <h2 className="text-xl font-semibold mb-2">Extracted Metadata</h2>
-          {result.articleId && <div className="mb-2"><strong>Article ID:</strong> {result.articleId}</div>}
-          <div className="mb-2"><strong>Title:</strong> {result.title}</div>
-          <div className="mb-2"><strong>Author:</strong> {result.author}</div>
-          <div className="mb-2"><strong>Category:</strong> {result.category}</div>
-          {result.subCategory && <div className="mb-2"><strong>Sub Category:</strong> {result.subCategory}</div>}
-          <div className="mb-2"><strong>Published Date:</strong> {result.publishedDate}</div>
-          <div className="mb-2"><strong>Update Date:</strong> {result.updateDate || 'N/A'}</div>
-          <div className="mb-2"><strong>Tags:</strong> {result.tags?.length ? result.tags.join(', ') : 'None'}</div>
+          {resultData.articleId && <div className="mb-2"><strong>Article ID:</strong> {resultData.articleId}</div>}
+          <div className="mb-2"><strong>Title:</strong> {resultData.title}</div>
+          <div className="mb-2"><strong>Author:</strong> {resultData.author}</div>
+          <div className="mb-2"><strong>Category:</strong> {resultData.category}</div>
+          {resultData.subCategory && <div className="mb-2"><strong>Sub Category:</strong> {resultData.subCategory}</div>}
+          <div className="mb-2"><strong>Published Date:</strong> {resultData.publishedDate}</div>
+          <div className="mb-2"><strong>Update Date:</strong> {resultData.updateDate || 'N/A'}</div>
+          <div className="mb-2"><strong>Tags:</strong> {resultData.tags?.length ? resultData.tags.join(', ') : 'None'}</div>
           
-          {result.images?.length > 0 && (
+          {resultData.images && resultData.images.length > 0 && (
             <div className="mb-4">
               <strong>Main Image:</strong>
               <div className="mt-2 border rounded overflow-hidden">
-                <img src={result.images[0]} alt="Main featured image" className="w-full h-auto" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={resultData.images[0]} alt="Main featured image" className="w-full h-auto" />
               </div>
             </div>
           )}
           
-          {result.articleImageList?.length > 0 && (
+          {resultData.articleImageList && resultData.articleImageList.length > 0 && (
             <div className="mb-4">
-              <strong>Article Images ({result.articleImageList.length}):</strong>
+              <strong>Article Images ({resultData.articleImageList.length}):</strong>
               <div className="mt-2 space-y-4">
-                {result.articleImageList.map((item: { url: string; caption?: string }, i: number) => (
+                {resultData.articleImageList.map((item, i: number) => (
                   <div key={i} className="border rounded overflow-hidden bg-white">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={item.url} alt={item.caption || `Article image ${i + 1}`} className="w-full h-auto" />
                     {item.caption && (
                       <div className="p-2 text-sm text-gray-600 bg-gray-50">
@@ -162,18 +180,33 @@ export default function ScraperUrlTestPage() {
           
           <div className="mb-2"><strong>Content:</strong></div>
           <div className="text-gray-800 text-sm max-h-96 overflow-auto border p-4 bg-white rounded space-y-4">
-            {result.content.split('\n\n').filter(Boolean).map((block: string, i: number) => {
-              // Check if this is a heading (starts with ###)
-              if (block.startsWith('### ')) {
-                const headingText = block.replace('### ', '');
-                return <h3 key={i} className="text-lg font-semibold mt-4 mb-2 text-gray-900">{headingText}</h3>;
-              }
-              // Regular paragraph
-              return <p key={i} className="leading-relaxed">{block}</p>;
-            })}
+            {Array.isArray(resultData.content) ? (
+              resultData.content.map((block, i: number) => {
+                if (block.type === 'heading') {
+                  return <h3 key={i} className="text-lg font-semibold mt-4 mb-2 text-gray-900">{block.text}</h3>;
+                }
+                return <p key={i} className="leading-relaxed">{block.text}</p>;
+              })
+            ) : typeof resultData.content === 'string' ? (
+              resultData.content.split('\n\n').filter(Boolean).map((block: string, i: number) => {
+                if (block.startsWith('### ')) {
+                  const headingText = block.replace('### ', '');
+                  return <h3 key={i} className="text-lg font-semibold mt-4 mb-2 text-gray-900">{headingText}</h3>;
+                }
+                return <p key={i} className="leading-relaxed">{block}</p>;
+              })
+            ) : null}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+export default function ScraperUrlTestPage() {
+  return (
+    <Suspense fallback={<div className="max-w-2xl mx-auto py-10 px-4">Loading...</div>}>
+      <ScraperUrlTestContent />
+    </Suspense>
   );
 }
