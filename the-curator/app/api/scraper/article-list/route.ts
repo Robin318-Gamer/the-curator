@@ -10,11 +10,41 @@ export async function POST(_req: NextRequest) {
   let browser;
   try {
     const db = supabaseAdmin ?? supabase;
-    // Launch Puppeteer
-    browser = await puppeteer.launch({
+    
+    // Launch Puppeteer with error handling for missing Chrome
+    const launchOptions: any = {
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-    });
+    };
+
+    // For Vercel/serverless: use browserless.io or similar
+    if (process.env.BROWSERLESS_TOKEN) {
+      browser = await puppeteer.connect({
+        browserWSEndpoint: `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}`
+      });
+    } else {
+      try {
+        browser = await puppeteer.launch(launchOptions);
+      } catch (launchErr) {
+        const errorMsg = launchErr instanceof Error ? launchErr.message : String(launchErr);
+        if (errorMsg.includes('Could not find Chrome')) {
+          console.error('[ArticleList] Chrome not found. Install with: npx puppeteer browsers install chrome');
+          return Response.json({
+            success: false,
+            error: 'Browser not available. Install Chrome/Chromium or configure BROWSERLESS_TOKEN.',
+            hint: 'Run: npx puppeteer browsers install chrome'
+          }, { status: 503 });
+        }
+        throw launchErr;
+      }
+    }
+
+    if (!browser) {
+      return Response.json({
+        success: false,
+        error: 'Failed to launch browser'
+      }, { status: 503 });
+    }
     const page = await browser.newPage();
     
     // Block unnecessary resources

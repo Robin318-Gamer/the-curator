@@ -19,10 +19,51 @@ export async function POST(req: NextRequest) {
     const config = SCRAPER_CONFIGS[sourceKey] || hk01SourceConfig;
     
     // Launch Puppeteer to fetch and render the page with JavaScript
-    browser = await puppeteer.launch({
+    // Use connectBrowserWSEndpoint for serverless environments or install chrome first
+    const launchOptions: any = {
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-    });
+    };
+
+    // For Vercel/serverless: use chrome-aws-lambda or similar
+    // For local/Docker: ensure Chrome is installed via: npx puppeteer browsers install chrome
+    // Alternative: use remote browser endpoint if available
+    if (process.env.BROWSERLESS_TOKEN) {
+      // Use browserless.io service
+      browser = await puppeteer.connect({
+        browserWSEndpoint: `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}`
+      });
+    } else {
+      // Try to launch locally (requires Chrome/Chromium installed)
+      try {
+        browser = await puppeteer.launch(launchOptions);
+      } catch (launchErr) {
+        // Chrome not found - provide helpful error message
+        const errorMsg = launchErr instanceof Error ? launchErr.message : String(launchErr);
+        if (errorMsg.includes('Could not find Chrome')) {
+          console.error('[Scraper] Chrome not found. Solutions:');
+          console.error('1. Local: Run: npx puppeteer browsers install chrome');
+          console.error('2. Vercel: Install chrome-aws-lambda package');
+          console.error('3. Docker: Add Chrome to Dockerfile');
+          console.error('4. Serverless: Use browserless.io (set BROWSERLESS_TOKEN env var)');
+          
+          return Response.json({ 
+            success: false, 
+            error: 'Browser not available. Please install Chrome/Chromium or configure a remote browser service.',
+            hint: 'Set BROWSERLESS_TOKEN environment variable to use browserless.io service'
+          }, { status: 503 });
+        }
+        throw launchErr;
+      }
+    }
+
+    // Ensure browser was launched
+    if (!browser) {
+      return Response.json({ 
+        success: false, 
+        error: 'Failed to launch browser' 
+      }, { status: 503 });
+    }
     const page = await browser.newPage();
     
     // Block unnecessary resources to speed up loading
