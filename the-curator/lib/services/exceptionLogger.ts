@@ -1,5 +1,4 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Database } from '@/lib/types/database';
 
 export interface ExceptionLogInput {
   errorType: string;
@@ -26,7 +25,7 @@ export interface ExceptionLogInput {
  * Handles errors gracefully - logs to console if database logging fails
  */
 export async function logException(
-  client: SupabaseClient<Database>,
+  client: SupabaseClient,
   input: ExceptionLogInput
 ): Promise<void> {
   try {

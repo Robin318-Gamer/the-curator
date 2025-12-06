@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
           operation: 'category_selection',
           requestMethod: 'POST',
           requestUrl: request.url,
-          requestBody: body,
+          requestBody: body as Record<string, unknown>,
           categorySlug: body.categorySlug,
           severity: 'error',
         }).catch((err) => console.error('Failed to log exception:', err));
@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
 
     // Log critical exceptions
     if (supabaseAdmin) {
-      const body = await request.json().catch(() => ({}));
+      const bodyForLogging = await request.json().catch(() => ({}));
       await logException(supabaseAdmin, {
         errorType: errorDetails.type,
         errorMessage,
@@ -257,7 +257,7 @@ export async function POST(request: NextRequest) {
         operation: 'article_run',
         requestMethod: 'POST',
         requestUrl: request.url,
-        requestBody: body,
+        requestBody: bodyForLogging as Record<string, unknown>,
         severity: 'critical',
       }).catch((err) => console.error('Failed to log critical exception:', err));
     }
