@@ -6,6 +6,7 @@ import { appendAutomationLog } from '@/lib/utils/automationLogger';
 import { supabaseAdmin } from '@/lib/db/supabase';
 import { hk01SourceConfig } from '@/lib/constants/sources';
 import { importArticle } from '@/lib/supabase/articlesClient';
+import { logException, extractErrorDetails } from '@/lib/services/exceptionLogger';
 import type { ScraperCategory, ScrapedArticle } from '@/lib/types/database';
 import puppeteer from 'puppeteer';
 import { randomUUID } from 'crypto';
@@ -116,8 +117,27 @@ export async function POST(request: NextRequest) {
     try {
       category = await CategoryScheduler.selectCategory(body.categorySlug);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorDetails = extractErrorDetails(error);
+      const errorMessage = errorDetails.message;
       console.error('[Scraper Article] Failed to load scheduler category', errorMessage);
+
+      // Log to exception table
+      if (supabaseAdmin) {
+        await logException(supabaseAdmin, {
+          errorType: errorDetails.type,
+          errorMessage,
+          errorStack: errorDetails.stack,
+          endpoint: '/api/scraper/article',
+          functionName: 'POST',
+          operation: 'category_selection',
+          requestMethod: 'POST',
+          requestUrl: request.url,
+          requestBody: body,
+          categorySlug: body.categorySlug,
+          severity: 'error',
+        }).catch((err) => console.error('Failed to log exception:', err));
+      }
+
       return NextResponse.json(
         { success: false, error: `Category selection failed: ${errorMessage}` },
         { status: 500 }
@@ -171,6 +191,26 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         errors.push(message);
+        const errorDetails = extractErrorDetails(err);
+
+        // Log individual article scraping failures
+        if (supabaseAdmin) {
+          await logException(supabaseAdmin, {
+            errorType: errorDetails.type,
+            errorMessage: message,
+            errorStack: errorDetails.stack,
+            endpoint: '/api/scraper/article',
+            functionName: 'POST',
+            operation: 'article_scrape',
+            requestMethod: 'POST',
+            requestUrl: request.url,
+            categorySlug: category.slug,
+            sourceKey: category.source?.source_key,
+            articleUrl: entry.url,
+            severity: 'warning',
+          }).catch((err) => console.error('Failed to log article exception:', err));
+        }
+
         await updateNewslistEntry(entry.id, {
           status: 'failed',
           error_log: message,
@@ -201,8 +241,27 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { runId, processed, errors } });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorDetails = extractErrorDetails(error);
+    const errorMessage = errorDetails.message;
     console.error('[Scraper Article] Unexpected error:', errorMessage);
+
+    // Log critical exceptions
+    if (supabaseAdmin) {
+      const body = await request.json().catch(() => ({}));
+      await logException(supabaseAdmin, {
+        errorType: errorDetails.type,
+        errorMessage,
+        errorStack: errorDetails.stack,
+        endpoint: '/api/scraper/article',
+        functionName: 'POST',
+        operation: 'article_run',
+        requestMethod: 'POST',
+        requestUrl: request.url,
+        requestBody: body,
+        severity: 'critical',
+      }).catch((err) => console.error('Failed to log critical exception:', err));
+    }
+
     return NextResponse.json(
       { success: false, error: `Internal server error: ${errorMessage}` },
       { status: 500 }
