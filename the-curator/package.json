@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@sparticuz/chromium": "^143.0.0",
     "@supabase/supabase-js": "^2.45.0",
     "cheerio": "^1.0.0",
     "clsx": "^2.1.0",

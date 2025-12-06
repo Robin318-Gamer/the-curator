@@ -3,6 +3,7 @@ import { ArticleScraper } from '@/lib/scrapers/ArticleScraper';
 import { hk01SourceConfig } from '@/lib/constants/sources';
 import type { NewsSource } from '@/lib/types/database';
 import puppeteer from 'puppeteer';
+import chromium from '@sparticuz/chromium';
 
 // For demo: only HK01 supported. Add more sources as needed.
 const SCRAPER_CONFIGS: Record<string, NewsSource> = {
@@ -18,46 +19,31 @@ export async function POST(req: NextRequest) {
     }
     const config = SCRAPER_CONFIGS[sourceKey] || hk01SourceConfig;
     
-    // Launch Puppeteer to fetch and render the page with JavaScript
-    // Use connectBrowserWSEndpoint for serverless environments or install chrome first
+    // Launch Puppeteer with Vercel/serverless optimization using @sparticuz/chromium
     const launchOptions: any = {
+      args: chromium.args || ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      executablePath: await chromium.executablePath(),
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     };
 
-    // For Vercel/serverless: use chrome-aws-lambda or similar
-    // For local/Docker: ensure Chrome is installed via: npx puppeteer browsers install chrome
-    // Alternative: use remote browser endpoint if available
-    if (process.env.BROWSERLESS_TOKEN) {
-      // Use browserless.io service
-      browser = await puppeteer.connect({
-        browserWSEndpoint: `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}`
-      });
-    } else {
-      // Try to launch locally (requires Chrome/Chromium installed)
-      try {
-        browser = await puppeteer.launch(launchOptions);
-      } catch (launchErr) {
-        // Chrome not found - provide helpful error message
-        const errorMsg = launchErr instanceof Error ? launchErr.message : String(launchErr);
-        if (errorMsg.includes('Could not find Chrome')) {
-          console.error('[Scraper] Chrome not found. Solutions:');
-          console.error('1. Local: Run: npx puppeteer browsers install chrome');
-          console.error('2. Vercel: Install chrome-aws-lambda package');
-          console.error('3. Docker: Add Chrome to Dockerfile');
-          console.error('4. Serverless: Use browserless.io (set BROWSERLESS_TOKEN env var)');
-          
-          return Response.json({ 
-            success: false, 
-            error: 'Browser not available. Please install Chrome/Chromium or configure a remote browser service.',
-            hint: 'Set BROWSERLESS_TOKEN environment variable to use browserless.io service'
-          }, { status: 503 });
-        }
-        throw launchErr;
-      }
+    // Fallback for local development without @sparticuz/chromium
+    if (!launchOptions.executablePath) {
+      launchOptions.args = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'];
     }
 
-    // Ensure browser was launched
+    try {
+      browser = await puppeteer.launch(launchOptions);
+    } catch (launchErr) {
+      const errorMsg = launchErr instanceof Error ? launchErr.message : String(launchErr);
+      console.error('[Scraper] Failed to launch browser:', errorMsg);
+      
+      return Response.json({ 
+        success: false, 
+        error: 'Browser not available on this server',
+        hint: 'For Vercel: ensure @sparticuz/chromium is installed (npm install @sparticuz/chromium). For local: run npx puppeteer browsers install chrome'
+      }, { status: 503 });
+    }
+
     if (!browser) {
       return Response.json({ 
         success: false, 
