@@ -209,6 +209,13 @@ export default function AdminLanding() {
           font-family: var(--font-inter);
         }
 
+        @media (prefers-color-scheme: light) {
+          .admin-root {
+            background: linear-gradient(120deg, #f8fafc 0%, #f0f4f8 100%);
+            color: #1e293b;
+          }
+        }
+
         .hero {
           max-width: 960px;
           margin: 0 auto 2.5rem;

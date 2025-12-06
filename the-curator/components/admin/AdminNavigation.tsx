@@ -45,22 +45,22 @@ export default function AdminNavigation() {
   };
 
   return (
-    <nav className="bg-slate-900 text-white shadow-lg">
+    <nav className="bg-slate-900 dark:bg-stone-950 text-white shadow-lg border-b dark:border-stone-800">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Admin</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400 dark:text-stone-500">Admin</p>
           <p className="text-lg font-semibold text-white">The Curator 工具列</p>
         </div>
         <button
           type="button"
-          className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 md:hidden"
+          className="rounded-lg border border-slate-700 dark:border-stone-700 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 dark:hover:bg-stone-800 md:hidden"
           onClick={() => setIsMenuOpen(prev => !prev)}
           aria-label="切換導覽選單"
         >
           {isMenuOpen ? "Close" : "Menu"}
         </button>
       </div>
-      <div className={`${isMenuOpen ? "block" : "hidden"} border-t border-slate-800 md:block`}>
+      <div className={`${isMenuOpen ? "block" : "hidden"} border-t border-slate-800 dark:border-stone-700 md:block`}>
         <div className="mx-auto grid max-w-6xl gap-3 px-4 py-4 md:grid-cols-5">
           {NAV_LINKS.map(link => (
             <Link
@@ -68,13 +68,13 @@ export default function AdminNavigation() {
               href={link.href}
               className={`group rounded-xl border px-4 py-3 transition-all duration-150 ${
                 isActive(link.href)
-                  ? "border-white bg-white text-slate-900 shadow"
-                  : "border-slate-700/80 bg-slate-900 text-slate-200 hover:border-slate-400"
+                  ? "border-white dark:border-stone-300 bg-white dark:bg-stone-100 text-slate-900 dark:text-stone-950 shadow"
+                  : "border-slate-700/80 dark:border-stone-700 bg-slate-900 dark:bg-stone-900 text-slate-200 dark:text-stone-300 hover:border-slate-400 dark:hover:border-stone-500"
               }`}
               onClick={() => setIsMenuOpen(false)}
             >
               <p className="text-sm font-semibold tracking-wide">{link.label}</p>
-              <p className="text-xs text-slate-400 group-hover:text-slate-300">
+              <p className="text-xs text-slate-400 dark:text-stone-500 group-hover:text-slate-300 dark:group-hover:text-stone-400">
                 {link.description}
               </p>
             </Link>
