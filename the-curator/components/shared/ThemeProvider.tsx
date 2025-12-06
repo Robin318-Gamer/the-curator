@@ -1,70 +1,13 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
 import { type ThemeProviderProps } from 'next-themes/dist/types';
 
 /**
- * Custom storage handler for theme persistence using cookies + localStorage
- * Cookies ensure persistence across browser restarts and enable cross-device sync
- * localStorage provides fallback for environments with cookies disabled
- */
-const themeStorageHandler = {
-  getItem: (key: string) => {
-    if (typeof document === 'undefined') return null;
-    
-    // Try cookies first (more persistent)
-    const cookieValue = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${key}=`))
-      ?.split('=')[1];
-    
-    if (cookieValue) return decodeURIComponent(cookieValue);
-    
-    // Fallback to localStorage
-    try {
-      return localStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  },
-  
-  setItem: (key: string, value: string) => {
-    if (typeof document === 'undefined') return;
-    
-    // Set both cookie (expires in 1 year) and localStorage
-    const expiresDate = new Date();
-    expiresDate.setFullYear(expiresDate.getFullYear() + 1);
-    
-    // Set cookie
-    document.cookie = `${key}=${encodeURIComponent(value)};path=/;expires=${expiresDate.toUTCString()};SameSite=Lax`;
-    
-    // Also set localStorage as fallback
-    try {
-      localStorage.setItem(key, value);
-    } catch {
-      // Silently fail if localStorage unavailable
-    }
-  },
-  
-  removeItem: (key: string) => {
-    if (typeof document === 'undefined') return;
-    
-    // Remove from cookies
-    document.cookie = `${key}=;path=/;expires=Thu, 01 Jan 1970 00:00:00 UTC;SameSite=Lax`;
-    
-    // Remove from localStorage
-    try {
-      localStorage.removeItem(key);
-    } catch {
-      // Silently fail if localStorage unavailable
-    }
-  },
-};
-
-/**
  * Theme provider component that wraps the application
  * Provides theme context to all child components
- * Uses cookie-based persistence for better reliability and cross-device support
+ * Uses localStorage persistence (next-themes default)
  * 
  * @example
  * ```tsx
@@ -74,6 +17,72 @@ const themeStorageHandler = {
  * ```
  */
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    
+    // Handle cookie persistence separately
+    const STORAGE_KEY = 'theme-preference';
+    
+    // On mount, check if we need to sync from cookie
+    const syncCookieToStorage = () => {
+      if (typeof document === 'undefined') return;
+      
+      // Try to read from cookies
+      const cookieValue = document.cookie
+        .split('; ')
+        .find(row => row.startsWith(`${STORAGE_KEY}=`))
+        ?.split('=')[1];
+      
+      if (cookieValue) {
+        // If cookie exists, sync to localStorage
+        try {
+          localStorage.setItem(STORAGE_KEY, decodeURIComponent(cookieValue));
+        } catch {
+          // Silently fail if localStorage unavailable
+        }
+      }
+    };
+    
+    // Sync cookie to storage on mount
+    syncCookieToStorage();
+    
+    // Listen for storage changes and sync to cookies
+    const handleStorageChange = () => {
+      if (typeof document === 'undefined') return;
+      
+      try {
+        const currentTheme = localStorage.getItem(STORAGE_KEY);
+        if (currentTheme) {
+          const expiresDate = new Date();
+          expiresDate.setFullYear(expiresDate.getFullYear() + 1);
+          document.cookie = `${STORAGE_KEY}=${encodeURIComponent(currentTheme)};path=/;expires=${expiresDate.toUTCString()};SameSite=Lax`;
+        }
+      } catch {
+        // Silently fail
+      }
+    };
+    
+    // Watch for theme changes and update cookie
+    const observer = new MutationObserver(handleStorageChange);
+    const checkInterval = setInterval(handleStorageChange, 1000);
+    
+    // Also listen to window storage events
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      clearInterval(checkInterval);
+      window.removeEventListener('storage', handleStorageChange);
+      observer.disconnect();
+    };
+  }, []);
+
+  // Don't render until mounted to avoid hydration mismatch
+  if (!mounted) {
+    return <>{children}</>;
+  }
+
   return (
     <NextThemesProvider
       attribute="class"
@@ -81,7 +90,6 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
       enableSystem
       disableTransitionOnChange={false}
       storageKey="theme-preference"
-      storage={themeStorageHandler}
       {...props}
     >
       {children}
