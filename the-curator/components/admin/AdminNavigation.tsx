@@ -30,6 +30,21 @@ const NAV_LINKS = [
     label: "樣本驗證",
     description: "對照 Sample Data",
   },
+  {
+    href: "/admin/wordpress-config",
+    label: "WordPress 設定",
+    description: "配置 WordPress 連線",
+  },
+  {
+    href: "/admin/wordpress-publisher",
+    label: "發佈到 WordPress",
+    description: "發佈文章至 WordPress",
+  },
+  {
+    href: "/admin/wordpress-management",
+    label: "WordPress 管理",
+    description: "管理已發佈文章",
+  },
 ];
 
 export default function AdminNavigation() {
@@ -61,7 +76,7 @@ export default function AdminNavigation() {
         </button>
       </div>
       <div className={`${isMenuOpen ? "block" : "hidden"} border-t border-slate-800 md:block`}>
-        <div className="mx-auto grid max-w-6xl gap-3 px-4 py-4 md:grid-cols-5">
+        <div className="mx-auto grid max-w-6xl gap-3 px-4 py-4 md:grid-cols-4">
           {NAV_LINKS.map(link => (
             <Link
               key={link.href}

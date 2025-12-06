@@ -26,9 +26,9 @@ This document breaks down the implementation plan into 88 specific, executable t
 ### Database & Schema
 
 - [ ] T001 [P] Create database migration file `database/migrations/003_wordpress_tables.sql`
-- [ ] T002 [P] Define `wordpress_config` table schema with encryption columns
-- [ ] T003 [P] Define `wordpress_published_articles` table with full snapshot fields
-- [ ] T004 [P] Define `wordpress_publish_audit_log` table with change tracking
+- [ ] T002 [P] Define `wordpress.config` table schema with encryption columns (in wordpress schema)
+- [ ] T003 [P] Define `wordpress.published_articles` table with full snapshot fields (in wordpress schema)
+- [ ] T004 [P] Define `wordpress.publish_audit_log` table with change tracking (in wordpress schema)
 - [ ] T005 [P] Create indexes for performance (published_at, wp_post_id, is_deleted, user_id)
 - [ ] T006 [P] Add RLS (Row Level Security) policies for authenticated admins
 - [ ] T007 Apply migration to development database and verify schema
@@ -97,7 +97,7 @@ This document breaks down the implementation plan into 88 specific, executable t
 - [ ] T046 Validate required fields (title, content) with user-friendly errors
 - [ ] T047 Fetch WordPress config and authenticate with WordPress site
 - [ ] T048 Call WordPress REST API to create post as Draft
-- [ ] T049 Store article snapshot in `wordpress_published_articles` table
+- [ ] T049 Store article snapshot in `wordpress.published_articles` table
 - [ ] T050 Log successful publication to audit table
 - [ ] T051 Return success response with WordPress post URL
 - [ ] T052 Write integration tests for publish endpoint
