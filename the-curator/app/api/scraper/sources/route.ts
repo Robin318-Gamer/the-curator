@@ -6,7 +6,7 @@ export async function GET() {
     const { data: sources, error } = await supabase
       .from('news_sources')
       .select('*')
-      .eq('active', true)
+      .eq('is_active', true)
       .order('name');
 
     if (error) {

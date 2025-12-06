@@ -19,88 +19,95 @@ const CATEGORY_SOURCE_RELATION = 'source:news_sources(source_key, name, base_url
 async function ensureDefaultCategory(): Promise<ScraperCategory | null> {
   const client = ensureAdminClient();
 
-  const existingCategoryResult = await client
-    .from(CATEGORIES_TABLE)
-    .select(`*, ${CATEGORY_SOURCE_RELATION}`)
-    .eq('slug', FALLBACK_CATEGORY_SLUG)
-    .limit(1);
+  try {
+    const existingCategoryResult = await client
+      .from(CATEGORIES_TABLE)
+      .select(`*, ${CATEGORY_SOURCE_RELATION}`)
+      .eq('slug', FALLBACK_CATEGORY_SLUG)
+      .limit(1);
 
-  if (existingCategoryResult.error && existingCategoryResult.error.code !== 'PGRST116') {
-    throw existingCategoryResult.error;
-  }
-
-  const existingCategory = (existingCategoryResult.data?.[0] as ScraperCategory) ?? null;
-  if (existingCategory) {
-    return existingCategory;
-  }
-
-  const sourceResult = await client
-    .from(NEWS_SOURCES_TABLE)
-    .select('id, source_key, name, base_url, scraper_config')
-    .eq('source_key', FALLBACK_SOURCE_KEY)
-    .limit(1);
-
-  if (sourceResult.error && sourceResult.error.code !== 'PGRST116') {
-    throw sourceResult.error;
-  }
-
-  let sourceRecord = sourceResult.data?.[0] as
-    | { id: string; source_key: string; name: string; base_url: string; scraper_config: Record<string, any> | null }
-    | null;
-
-  if (!sourceRecord) {
-    const { data: insertedSource, error: insertSourceError } = await client
-      .from(NEWS_SOURCES_TABLE)
-      .insert({
-        source_key: FALLBACK_SOURCE_KEY,
-        name: 'HK01',
-        base_url: 'https://www.hk01.com',
-        scraper_config: {
-          selectors: {
-            title: 'h1#articleTitle',
-            author: '[data-testid="article-author"]',
-            breadcrumb_zone: '[data-testid="article-breadcrumb-zone"]',
-            breadcrumb_channel: '[data-testid="article-breadcrumb-channel"]',
-            published_date: '[data-testid="article-publish-date"]',
-            updated_date: '[data-testid="article-update-date"]',
-            tags: '[data-testid="article-tag"]',
-            main_image: '[data-testid="article-top-section"] img',
-            images: '.article-grid__content-section .lazyload-wrapper img',
-            content: '.article-grid__content-section',
-          },
-        },
-        is_active: true,
-      })
-      .select('id, source_key, name, base_url, scraper_config')
-      .single();
-
-    if (insertSourceError) {
-      throw insertSourceError;
+    if (existingCategoryResult.error && existingCategoryResult.error.code !== 'PGRST116') {
+      throw existingCategoryResult.error;
     }
 
-    sourceRecord = insertedSource;
+    const existingCategory = (existingCategoryResult.data?.[0] as ScraperCategory) ?? null;
+    if (existingCategory) {
+      return existingCategory;
+    }
+
+    const sourceResult = await client
+      .from(NEWS_SOURCES_TABLE)
+      .select('id, source_key, name, base_url, scraper_config')
+      .eq('source_key', FALLBACK_SOURCE_KEY)
+      .limit(1);
+
+    if (sourceResult.error && sourceResult.error.code !== 'PGRST116') {
+      throw sourceResult.error;
+    }
+
+    let sourceRecord = sourceResult.data?.[0] as
+      | { id: string; source_key: string; name: string; base_url: string; scraper_config: Record<string, unknown> | null }
+      | null;
+
+    if (!sourceRecord) {
+      const { data: insertedSource, error: insertSourceError } = await client
+        .from(NEWS_SOURCES_TABLE)
+        .insert({
+          source_key: FALLBACK_SOURCE_KEY,
+          name: 'HK01',
+          base_url: 'https://www.hk01.com',
+          scraper_config: {
+            selectors: {
+              title: 'h1#articleTitle',
+              author: '[data-testid="article-author"]',
+              breadcrumb_zone: '[data-testid="article-breadcrumb-zone"]',
+              breadcrumb_channel: '[data-testid="article-breadcrumb-channel"]',
+              published_date: '[data-testid="article-publish-date"]',
+              updated_date: '[data-testid="article-update-date"]',
+              tags: '[data-testid="article-tag"]',
+              main_image: '[data-testid="article-top-section"] img',
+              images: '.article-grid__content-section .lazyload-wrapper img',
+              content: '.article-grid__content-section',
+            },
+          },
+          is_active: true,
+        })
+        .select('id, source_key, name, base_url, scraper_config')
+        .single();
+
+      if (insertSourceError) {
+        console.error('[ensureDefaultCategory] Error creating news source:', insertSourceError);
+        throw insertSourceError;
+      }
+
+      sourceRecord = insertedSource;
+    }
+
+    const { data: categoryData, error: upsertError } = await client
+      .from(CATEGORIES_TABLE)
+      .upsert(
+        {
+          source_id: sourceRecord.id,
+          slug: FALLBACK_CATEGORY_SLUG,
+          name: FALLBACK_CATEGORY_NAME,
+          priority: 10,
+          is_enabled: true,
+        },
+        { onConflict: 'source_id,slug' }
+      )
+      .select(`*, ${CATEGORY_SOURCE_RELATION}`)
+      .single();
+
+    if (upsertError) {
+      console.error('[ensureDefaultCategory] Error upserting category:', upsertError);
+      throw upsertError;
+    }
+
+    return (categoryData as ScraperCategory) ?? null;
+  } catch (err) {
+    console.error('[ensureDefaultCategory] Unexpected error:', err);
+    throw err;
   }
-
-  const { data: categoryData, error: upsertError } = await client
-    .from(CATEGORIES_TABLE)
-    .upsert(
-      {
-        source_id: sourceRecord.id,
-        slug: FALLBACK_CATEGORY_SLUG,
-        name: FALLBACK_CATEGORY_NAME,
-        priority: 10,
-        is_enabled: true,
-      },
-      { onConflict: 'source_id,slug' }
-    )
-    .select(`*, ${CATEGORY_SOURCE_RELATION}`)
-    .single();
-
-  if (upsertError) {
-    throw upsertError;
-  }
-
-  return (categoryData as ScraperCategory) ?? null;
 }
 
 export async function getEnabledScraperCategories(): Promise<ScraperCategory[]> {
@@ -138,24 +145,35 @@ export async function getScraperCategoryBySlug(slug: string): Promise<ScraperCat
 
 export async function getNextScraperCategory(): Promise<ScraperCategory | null> {
   const client = ensureAdminClient();
-  const { data, error } = await client
-    .from(CATEGORIES_TABLE)
-    .select(`*, ${CATEGORY_SOURCE_RELATION}`)
-    .eq('is_enabled', true)
-    .order('last_run_at', { ascending: true, nullsFirst: true })
-    .order('priority', { ascending: true })
-    .limit(1);
+  try {
+    const { data, error } = await client
+      .from(CATEGORIES_TABLE)
+      .select(`*, ${CATEGORY_SOURCE_RELATION}`)
+      .eq('is_enabled', true)
+      .order('last_run_at', { ascending: true, nullsFirst: true })
+      .order('priority', { ascending: true })
+      .limit(1);
 
-  if (error && error.code !== 'PGRST116') {
-    throw error;
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
+
+    const category = (data?.[0] as ScraperCategory) ?? null;
+    if (category) {
+      return category;
+    }
+
+    return ensureDefaultCategory();
+  } catch (err) {
+    console.error('[CategoryScheduler] Error in getNextScraperCategory:', err);
+    // Try fallback: ensure default category exists and return it
+    try {
+      return await ensureDefaultCategory();
+    } catch (fallbackErr) {
+      console.error('[CategoryScheduler] Fallback also failed:', fallbackErr);
+      throw err;
+    }
   }
-
-  const category = (data?.[0] as ScraperCategory) ?? null;
-  if (category) {
-    return category;
-  }
-
-  return ensureDefaultCategory();
 }
 
 export async function getNextScraperCategoryForSource(sourceKey: string): Promise<ScraperCategory | null> {

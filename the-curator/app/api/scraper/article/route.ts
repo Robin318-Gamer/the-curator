@@ -108,94 +108,104 @@ async function updateNewslistEntry(entryId: string, patch: Partial<ArticleEntry>
 }
 
 export async function POST(request: NextRequest) {
-  const body: ArticleRunRequest = await request.json().catch(() => ({}));
-  const limit = body.limit && body.limit > 0 ? Math.min(body.limit, 10) : 4;
-  let category: ScraperCategory | null = null;
-
   try {
-    category = await CategoryScheduler.selectCategory(body.categorySlug);
+    const body: ArticleRunRequest = await request.json().catch(() => ({}));
+    const limit = body.limit && body.limit > 0 ? Math.min(body.limit, 10) : 4;
+    let category: ScraperCategory | null = null;
+
+    try {
+      category = await CategoryScheduler.selectCategory(body.categorySlug);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('[Scraper Article] Failed to load scheduler category', errorMessage);
+      return NextResponse.json(
+        { success: false, error: `Category selection failed: ${errorMessage}` },
+        { status: 500 }
+      );
+    }
+
+    if (!category) {
+      return NextResponse.json({ success: false, error: 'No enabled category found for scheduling.' }, { status: 404 });
+    }
+
+    const runId = randomUUID();
+    await createAutomationHistory({
+      runId,
+      categorySlug: category.slug,
+      sourceId: category.source_id,
+    });
+
+    const entries = await fetchPendingEntries(category, limit, Boolean(body.force));
+    const errors: string[] = [];
+    let processed = 0;
+    const startedAt = new Date().toISOString();
+
+    const sourceForScraper = buildScraperSource(category);
+
+    for (const entry of entries) {
+      const attemptTimestamp = new Date().toISOString();
+      await updateNewslistEntry(entry.id, {
+        status: 'processing',
+        attempt_count: entry.attempt_count + 1,
+        last_processed_at: attemptTimestamp,
+      });
+
+      try {
+        const html = await fetchPageHtml(entry.url);
+        const scraper = new ArticleScraper(sourceForScraper as any);
+        const result = await scraper.scrapeArticle(html, entry.url);
+
+        if (!result.success) {
+          throw new Error(result.error ?? 'Scraper returned failure.');
+        }
+
+        const importOutcome = await importArticle(result.data as ScrapedArticle, entry.url, {
+          skipProcessingStatus: true,
+        });
+
+        if (!importOutcome.success) {
+          throw new Error(importOutcome.error ?? importOutcome.message);
+        }
+
+        processed += 1;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        errors.push(message);
+        await updateNewslistEntry(entry.id, {
+          status: 'failed',
+          error_log: message,
+          last_processed_at: new Date().toISOString(),
+        });
+      }
+    }
+
+    const completedAt = new Date().toISOString();
+    await updateAutomationHistory(runId, {
+      status: 'completed',
+      completedAt,
+      articlesProcessed: processed,
+      errors,
+    });
+
+    await CategoryScheduler.refreshLastRun(category.id, completedAt);
+
+    await appendAutomationLog({
+      runId,
+      categorySlug: category.slug,
+      status: 'completed',
+      articlesProcessed: processed,
+      errors,
+      startedAt,
+      completedAt,
+    });
+
+    return NextResponse.json({ success: true, data: { runId, processed, errors } });
   } catch (error) {
-    console.error('[Scraper Article] Failed to load scheduler category', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[Scraper Article] Unexpected error:', errorMessage);
     return NextResponse.json(
-      { success: false, error: 'Unable to determine scheduler category.' },
+      { success: false, error: `Internal server error: ${errorMessage}` },
       { status: 500 }
     );
   }
-
-  if (!category) {
-    return NextResponse.json({ success: false, error: 'No enabled category found for scheduling.' }, { status: 404 });
-  }
-
-  const runId = randomUUID();
-  await createAutomationHistory({
-    runId,
-    categorySlug: category.slug,
-    sourceId: category.source_id,
-  });
-
-  const entries = await fetchPendingEntries(category, limit, Boolean(body.force));
-  const errors: string[] = [];
-  let processed = 0;
-  const startedAt = new Date().toISOString();
-
-  const sourceForScraper = buildScraperSource(category);
-
-  for (const entry of entries) {
-    const attemptTimestamp = new Date().toISOString();
-    await updateNewslistEntry(entry.id, {
-      status: 'processing',
-      attempt_count: entry.attempt_count + 1,
-      last_processed_at: attemptTimestamp,
-    });
-
-    try {
-      const html = await fetchPageHtml(entry.url);
-      const scraper = new ArticleScraper(sourceForScraper as any);
-      const result = await scraper.scrapeArticle(html, entry.url);
-
-      if (!result.success) {
-        throw new Error(result.error ?? 'Scraper returned failure.');
-      }
-
-      const importOutcome = await importArticle(result.data as ScrapedArticle, entry.url, {
-        skipProcessingStatus: true,
-      });
-
-      if (!importOutcome.success) {
-        throw new Error(importOutcome.error ?? importOutcome.message);
-      }
-
-      processed += 1;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      errors.push(message);
-      await updateNewslistEntry(entry.id, {
-        status: 'failed',
-        error_log: message,
-        last_processed_at: new Date().toISOString(),
-      });
-    }
-  }
-
-  const completedAt = new Date().toISOString();
-  await updateAutomationHistory(runId, {
-    status: 'completed',
-    completedAt,
-    articlesProcessed: processed,
-    errors,
-  });
-
-  await CategoryScheduler.refreshLastRun(category.id, completedAt);
-
-  await appendAutomationLog({
-    runId,
-    categorySlug: category.slug,
-    status: 'completed',
-    articlesProcessed: processed,
-    errors,
-    startedAt,
-    completedAt,
-  });
-
-  return NextResponse.json({ success: true, data: { runId, processed, errors } });
 }
