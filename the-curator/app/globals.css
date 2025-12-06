@@ -4,6 +4,36 @@
 
 :root {
   --font-inter: 'Inter', system-ui, -apple-system, sans-serif;
+  
+  /* Light mode colors */
+  --background: #ffffff;
+  --foreground: #0c0a09;
+  --card: #fafaf9;
+  --card-foreground: #1c1917;
+  --primary-foreground: #f0f9ff;
+  --secondary: #f5f5f4;
+  --secondary-foreground: #292524;
+  --muted: #e7e5e4;
+  --muted-foreground: #57534e;
+  --accent: #e0f2fe;
+  --accent-foreground: #075985;
+  --border: #d6d3d1;
+}
+
+.dark {
+  /* Dark mode colors */
+  --background: #0c0a09;
+  --foreground: #fafaf9;
+  --card: #1c1917;
+  --card-foreground: #f5f5f4;
+  --primary-foreground: #0c4a6e;
+  --secondary: #292524;
+  --secondary-foreground: #e7e5e4;
+  --muted: #44403c;
+  --muted-foreground: #a8a29e;
+  --accent: #0c4a6e;
+  --accent-foreground: #bae6fd;
+  --border: #57534e;
 }
 
 * {
@@ -20,7 +50,9 @@ body {
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: white;
+  background: var(--background);
+  color: var(--foreground);
+  transition: background-color 200ms ease-in-out, color 200ms ease-in-out;
 }
 
 a {

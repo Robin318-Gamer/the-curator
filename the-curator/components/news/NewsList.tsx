@@ -217,26 +217,26 @@ export default function NewsList() {
 
   return (
     <section className="space-y-6">
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-3xl border border-slate-200 dark:border-stone-700 bg-white dark:bg-stone-800 p-6 shadow-sm">
         <div className="flex flex-col gap-4">
           <form className="grid gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto]" onSubmit={handleSearch}>
             <div className="flex flex-col">
-              <label className="text-xs font-semibold uppercase tracking-[0.5em] text-slate-500">
+              <label className="text-xs font-semibold uppercase tracking-[0.5em] text-slate-500 dark:text-stone-400">
                 {t.searchLabel}
               </label>
               <input
-                className="mt-1 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-2xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-900 text-slate-900 dark:text-stone-50 px-3 py-2 text-sm"
                 placeholder={t.searchPlaceholder}
                 value={searchInput}
                 onChange={event => setSearchInput(event.target.value)}
               />
             </div>
             <div className="flex flex-col">
-              <label className="text-xs font-semibold uppercase tracking-[0.5em] text-slate-500">
+              <label className="text-xs font-semibold uppercase tracking-[0.5em] text-slate-500 dark:text-stone-400">
                 {t.tagLabel}
               </label>
               <input
-                className="mt-1 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-2xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-900 text-slate-900 dark:text-stone-50 px-3 py-2 text-sm"
                 placeholder={t.tagPlaceholder}
                 value={tagInput}
                 onChange={event => setTagInput(event.target.value)}
@@ -244,18 +244,18 @@ export default function NewsList() {
             </div>
             <button
               type="submit"
-              className="rounded-2xl bg-slate-900 px-5 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-white transition-colors hover:bg-slate-800"
+              className="rounded-2xl bg-slate-900 dark:bg-stone-50 px-5 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-white dark:text-stone-900 transition-colors hover:bg-slate-800 dark:hover:bg-stone-200"
             >
               {t.searchButton}
             </button>
           </form>
           <div className="flex flex-wrap gap-3">
             <div className="flex flex-col">
-              <label className="text-xs font-semibold uppercase tracking-[0.5em] text-slate-500">
+              <label className="text-xs font-semibold uppercase tracking-[0.5em] text-slate-500 dark:text-stone-400">
                 {t.categoryLabel}
               </label>
               <select
-                className="mt-1 rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="mt-1 rounded-2xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-900 text-slate-900 dark:text-stone-50 px-3 py-2 text-sm"
                 value={category}
                 onChange={event => handleCategoryChange(event.target.value)}
               >
@@ -268,11 +268,11 @@ export default function NewsList() {
               </select>
             </div>
             <div className="flex flex-col">
-              <label className="text-xs font-semibold uppercase tracking-[0.5em] text-slate-500">
+              <label className="text-xs font-semibold uppercase tracking-[0.5em] text-slate-500 dark:text-stone-400">
                 {t.subCategoryLabel}
               </label>
               <select
-                className="mt-1 rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="mt-1 rounded-2xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-900 text-slate-900 dark:text-stone-50 px-3 py-2 text-sm"
                 value={subCategory}
                 onChange={event => handleSubCategoryChange(event.target.value)}
                 disabled={!subCategoryOptions.length}
@@ -287,14 +287,14 @@ export default function NewsList() {
             </div>
           </div>
         </div>
-        <p className="mt-4 text-xs uppercase tracking-[0.3em] text-slate-400">
+        <p className="mt-4 text-xs uppercase tracking-[0.3em] text-slate-400 dark:text-stone-500">
           {t.showingLabel(articles.length, total)}
         </p>
         {error && <p className="mt-4 text-sm text-rose-600">{error}</p>}
       </div>
 
       {articles.length === 0 && !loading && (
-        <div className="rounded-3xl border border-dashed border-slate-300 bg-white/80 p-8 text-center text-slate-500">
+        <div className="rounded-3xl border border-dashed border-slate-300 dark:border-stone-600 bg-white/80 dark:bg-stone-800/80 p-8 text-center text-slate-500 dark:text-stone-400">
           {t.noArticles}
         </div>
       )}
@@ -303,10 +303,10 @@ export default function NewsList() {
         {articles.map(article => (
           <article
             key={article.id}
-            className="group flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-lg"
+            className="group flex flex-col overflow-hidden rounded-3xl border border-slate-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-sm transition-shadow hover:shadow-lg"
           >
             {article.main_image_url && (
-              <div className="overflow-hidden bg-slate-100">
+              <div className="overflow-hidden bg-slate-100 dark:bg-stone-900">
                 <img
                   src={article.main_image_url}
                   alt={article.title}
@@ -315,13 +315,13 @@ export default function NewsList() {
               </div>
             )}
             <div className="flex flex-1 flex-col gap-3 p-5">
-              <div className="text-xs uppercase tracking-[0.5em] text-slate-400">
+              <div className="text-xs uppercase tracking-[0.5em] text-slate-400 dark:text-stone-500">
                 {(article.category || 'Hong Kong').toUpperCase()} · {formatDate(article.published_date)}
               </div>
-              <Link href={`/news/${article.id}`} className="text-lg font-semibold text-slate-900">
+              <Link href={`/news/${article.id}`} className="text-lg font-semibold text-slate-900 dark:text-stone-50">
                 {article.title}
               </Link>
-              <p className="text-sm text-slate-600 line-clamp-3">
+              <p className="text-sm text-slate-600 dark:text-stone-300 line-clamp-3">
                 {article.excerpt || '尚未生成摘要'}
               </p>
               {article.tags && (
@@ -335,7 +335,7 @@ export default function NewsList() {
                         key={tag}
                         type="button"
                         onClick={() => handleTagClick(tag)}
-                        className="rounded-full border border-slate-200 px-3 py-1 text-slate-500 transition-colors hover:border-slate-900 hover:text-slate-900"
+                        className="rounded-full border border-slate-200 dark:border-stone-600 px-3 py-1 text-slate-500 dark:text-stone-400 transition-colors hover:border-slate-900 dark:hover:border-stone-300 hover:text-slate-900 dark:hover:text-stone-50"
                       >
                         {tag}
                       </button>
@@ -344,7 +344,7 @@ export default function NewsList() {
               )}
               <Link
                 href={`/news/${article.id}`}
-                className="mt-auto text-sm font-semibold text-slate-900 underline-offset-4 transition-colors hover:text-slate-600"
+                className="mt-auto text-sm font-semibold text-slate-900 dark:text-stone-50 underline-offset-4 transition-colors hover:text-slate-600 dark:hover:text-stone-300"
               >
                 Read article →
               </Link>
@@ -360,7 +360,7 @@ export default function NewsList() {
             type="button"
             onClick={loadMore}
             disabled={loading || !hasMore}
-            className="rounded-2xl border border-slate-300 px-6 py-3 text-sm font-semibold uppercase tracking-[0.4em] text-slate-900 transition-colors hover:bg-slate-900 hover:text-white disabled:opacity-40"
+            className="rounded-2xl border border-slate-300 dark:border-stone-600 px-6 py-3 text-sm font-semibold uppercase tracking-[0.4em] text-slate-900 dark:text-stone-50 transition-colors hover:bg-slate-900 dark:hover:bg-stone-100 hover:text-white dark:hover:text-stone-900 disabled:opacity-40"
           >
             {loading ? t.loading : t.loadMore}
           </button>
