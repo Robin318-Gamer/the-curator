@@ -97,8 +97,9 @@ async function fetchPendingEntries(category: ScraperCategory, limit: number, for
     throw new Error('Supabase service role client is required.');
   }
 
+  // Fetch pending items
   const statuses = force ? ['pending', 'failed'] : ['pending'];
-  const { data, error } = await supabaseAdmin
+  const { data: entries, error } = await supabaseAdmin
     .from(NEWSLIST_TABLE)
     .select('*')
     .eq('source_id', category.source_id)
@@ -110,7 +111,28 @@ async function fetchPendingEntries(category: ScraperCategory, limit: number, for
     throw error;
   }
 
-  return (data ?? []) as ArticleEntry[];
+  // Also fetch failed items that can be retried (attempt_count < 3)
+  if (force) {
+    const { data: retryableEntries, error: retryError } = await supabaseAdmin
+      .from(NEWSLIST_TABLE)
+      .select('*')
+      .eq('source_id', category.source_id)
+      .eq('status', 'failed')
+      .lt('attempt_count', 3)  // Less than 3 attempts
+      .order('created_at', { ascending: true })
+      .limit(Math.max(0, limit - (entries?.length ?? 0)));
+
+    if (retryError) {
+      console.warn('[Scraper] Error fetching retryable entries:', retryError.message);
+    } else if (retryableEntries && retryableEntries.length > 0) {
+      // Combine with pending entries, removing duplicates
+      const entryIds = new Set((entries ?? []).map(e => e.id));
+      const uniqueRetryable = retryableEntries.filter(e => !entryIds.has(e.id));
+      return [...(entries ?? []), ...uniqueRetryable];
+    }
+  }
+
+  return (entries ?? []) as ArticleEntry[];
 }
 
 async function updateNewslistEntry(entryId: string, patch: Partial<ArticleEntry>) {
