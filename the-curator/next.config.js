@@ -26,6 +26,11 @@ const nextConfig = {
     locales: ['zh-TW'],
     defaultLocale: 'zh-TW',
   },
+  // Required for @sparticuz/chromium to work on Vercel
+  // Prevents webpack from bundling the chromium binary files
+  experimental: {
+    serverComponentsExternalPackages: ['@sparticuz/chromium'],
+  },
 }
 
 module.exports = nextConfig
