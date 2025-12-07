@@ -14,14 +14,14 @@ export async function GET(_req: NextRequest) {
     if (sourcesError) throw sourcesError;
     const activeSources = sourcesData?.length ?? 0;
 
-    // Get pending articles count (articles table where scrape_status = 'pending')
-    const { data: articlesData, error: articlesError } = await db
-      .from('articles')
+    // Get pending newslist rows (newslist table where status = 'pending')
+    const { data: newsListData, error: newsListError } = await db
+      .from('newslist')
       .select('id', { count: 'exact' })
-      .eq('scrape_status', 'pending');
+      .eq('status', 'pending');
 
-    if (articlesError) throw articlesError;
-    const pendingRows = articlesData?.length ?? 0;
+    if (newsListError) throw newsListError;
+    const pendingRows = newsListData?.length ?? 0;
 
     // Get average automation seed time from automation_history
     // Average time between runs (in seconds)
