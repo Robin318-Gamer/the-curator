@@ -8,7 +8,8 @@ import { hk01SourceConfig } from '@/lib/constants/sources';
 import { importArticle } from '@/lib/supabase/articlesClient';
 import { logException, extractErrorDetails } from '@/lib/services/exceptionLogger';
 import type { ScraperCategory, ScrapedArticle } from '@/lib/types/database';
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import { randomUUID } from 'crypto';
 
 const NEWSLIST_TABLE = 'newslist';
@@ -31,10 +32,26 @@ interface ArticleEntry {
 }
 
 async function fetchPageHtml(url: string): Promise<string> {
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  });
+  const isVercel = process.env.VERCEL === '1' || !process.env.PUPPETEER_EXECUTABLE_PATH;
+  
+  let launchOptions: any;
+  
+  if (isVercel) {
+    // On Vercel: use @sparticuz/chromium
+    launchOptions = {
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: 'new' as any,
+    };
+  } else {
+    // Local development: use local Chrome/Chromium
+    launchOptions = {
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    };
+  }
+  
+  const browser = await puppeteer.launch(launchOptions);
   const page = await browser.newPage();
 
   await page.setRequestInterception(true);
@@ -48,7 +65,7 @@ async function fetchPageHtml(url: string): Promise<string> {
   });
 
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36');
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
   await new Promise((resolve) => setTimeout(resolve, 1500));
   const html = await page.content();
   await browser.close();
