@@ -38,6 +38,7 @@ export default function AdminLanding() {
     'Bulk save HK01': true,
     'Scrape next article': true,
   });
+  const [metrics, setMetrics] = useState<{ avgSeed?: string; activeSources?: number; pendingRows?: number }>({});
 
 
   const handleAction = useCallback(async (action: typeof quickActions[number]) => {
@@ -60,6 +61,25 @@ export default function AdminLanding() {
         [action.title]: { state: 'error', message: error instanceof Error ? error.message : 'Unknown' },
       }));
     }
+  }, []);
+
+  // Fetch dashboard metrics on load and periodically
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const response = await fetch('/api/admin/metrics');
+        if (response.ok) {
+          const data = await response.json();
+          setMetrics(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch metrics:', error);
+      }
+    };
+    
+    fetchMetrics();
+    const intervalId = setInterval(fetchMetrics, 30000); // Refresh every 30s
+    return () => clearInterval(intervalId);
   }, []);
 
   // Automation for Bulk save HK01
@@ -117,15 +137,15 @@ export default function AdminLanding() {
         </div>
         <div className="hero-metrics">
           <div>
-            <strong>0.8s</strong>
+            <strong>{metrics.avgSeed ?? '–'}</strong>
             <span>avg automation seed</span>
           </div>
           <div>
-            <strong>2</strong>
+            <strong>{metrics.activeSources ?? '–'}</strong>
             <span>active sources</span>
           </div>
           <div>
-            <strong>56</strong>
+            <strong>{metrics.pendingRows ?? '–'}</strong>
             <span>pending newslist rows</span>
           </div>
         </div>
