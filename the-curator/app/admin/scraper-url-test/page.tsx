@@ -34,14 +34,26 @@ function ScraperUrlTestContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: targetUrl }),
       });
+      
+      // Check if response is valid JSON
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        setError(`Server error: Expected JSON but got ${contentType || 'unknown'} (Status: ${res.status})`);
+        return;
+      }
+      
       const data = await res.json();
       if (!data.success) {
-        setError(data.error || 'Unknown error');
+        setError(data.error || data.details || 'Unknown error');
       } else {
         setResult(data.data);
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (err instanceof SyntaxError && err.message.includes('JSON')) {
+        setError('Server timeout or returned invalid response. The scraper is taking too long. Try a different article.');
+      } else {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setLoading(false);
     }
