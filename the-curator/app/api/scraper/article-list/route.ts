@@ -18,17 +18,29 @@ export async function POST(_req: NextRequest) {
     const startTime = Date.now();
     
     // Launch Puppeteer with Vercel/serverless optimization using @sparticuz/chromium
-    const isVercel = process.env.VERCEL === '1' || !process.env.PUPPETEER_EXECUTABLE_PATH;
+    // Better Vercel detection - check for Vercel runtime environment
+    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV === 'production' || process.env.VERCEL_ENV === 'preview';
     
     let launchOptions: any;
     
     if (isVercel) {
       // On Vercel: use @sparticuz/chromium
-      launchOptions = {
-        args: chromium.args,
-        executablePath: await chromium.executablePath(),  // No path parameter needed
-        headless: 'new' as any,
-      };
+      try {
+        const execPath = await chromium.executablePath();
+        console.log('[ArticleList] Using Vercel chromium at:', execPath);
+        launchOptions = {
+          args: chromium.args,
+          executablePath: execPath,  // No path parameter needed
+          headless: 'new' as any,
+        };
+      } catch (chromiumErr) {
+        console.error('[ArticleList] Failed to get chromium executable path:', chromiumErr instanceof Error ? chromiumErr.message : String(chromiumErr));
+        return Response.json({ 
+          success: false, 
+          error: 'Chromium initialization failed on Vercel',
+          details: chromiumErr instanceof Error ? chromiumErr.message : String(chromiumErr)
+        }, { status: 503 });
+      }
     } else {
       // Local development: use local Chrome/Chromium
       const puppeteerRegular = await import('puppeteer');

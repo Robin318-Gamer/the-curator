@@ -32,17 +32,25 @@ interface ArticleEntry {
 }
 
 async function fetchPageHtml(url: string): Promise<string> {
-  const isVercel = process.env.VERCEL === '1' || !process.env.PUPPETEER_EXECUTABLE_PATH;
+  // Better Vercel detection - check for Vercel runtime environment
+  const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV === 'production' || process.env.VERCEL_ENV === 'preview';
   
   let launchOptions: any;
   
   if (isVercel) {
     // On Vercel: use @sparticuz/chromium
-    launchOptions = {
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
-      headless: 'new' as any,
-    };
+    try {
+      const execPath = await chromium.executablePath();
+      console.log('[Scraper] Using Vercel chromium at:', execPath);
+      launchOptions = {
+        args: chromium.args,
+        executablePath: execPath,
+        headless: 'new' as any,
+      };
+    } catch (chromiumErr) {
+      console.error('[Scraper] Failed to get chromium executable path:', chromiumErr instanceof Error ? chromiumErr.message : String(chromiumErr));
+      throw new Error('Vercel chromium unavailable');
+    }
   } else {
     // Local development: use local Chrome/Chromium
     launchOptions = {
@@ -51,7 +59,14 @@ async function fetchPageHtml(url: string): Promise<string> {
     };
   }
   
-  const browser = await puppeteer.launch(launchOptions);
+  let browser;
+  try {
+    browser = await puppeteer.launch(launchOptions);
+  } catch (launchErr) {
+    console.error('[Scraper] Browser launch failed:', launchErr instanceof Error ? launchErr.message : String(launchErr));
+    throw launchErr;
+  }
+  
   const page = await browser.newPage();
 
   await page.setRequestInterception(true);
