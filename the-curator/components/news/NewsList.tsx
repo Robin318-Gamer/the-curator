@@ -36,6 +36,8 @@ const translations = {
   searchButton: '查詢',
   categoryLabel: '分類',
   subCategoryLabel: '子分類',
+  dateFromLabel: '開始日期',
+  dateToLabel: '結束日期',
   showingLabel: (visible: number, total: number) => `顯示 ${visible} / ${total} 篇文章`,
   noArticles: '目前沒有符合條件的文章。',
   loadMore: '載入更多',
@@ -53,11 +55,15 @@ export default function NewsList() {
   const appliedTag = searchParams?.get('tag') ?? '';
   const appliedCategory = searchParams?.get('category') ?? '';
   const appliedSubCategory = searchParams?.get('subCategory') ?? '';
+  const appliedDateFrom = searchParams?.get('dateFrom') ?? '';
+  const appliedDateTo = searchParams?.get('dateTo') ?? '';
 
   const [searchInput, setSearchInput] = useState(appliedSearch);
   const [tagInput, setTagInput] = useState(appliedTag);
   const [category, setCategory] = useState(appliedCategory);
   const [subCategory, setSubCategory] = useState(appliedSubCategory);
+  const [dateFrom, setDateFrom] = useState(appliedDateFrom);
+  const [dateTo, setDateTo] = useState(appliedDateTo);
   const [articles, setArticles] = useState<ArticleSummary[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -82,15 +88,17 @@ export default function NewsList() {
     setTagInput(appliedTag);
     setCategory(appliedCategory);
     setSubCategory(appliedSubCategory);
+    setDateFrom(appliedDateFrom);
+    setDateTo(appliedDateTo);
     setPage(1);
-  }, [appliedSearch, appliedTag, appliedCategory, appliedSubCategory]);
+  }, [appliedSearch, appliedTag, appliedCategory, appliedSubCategory, appliedDateFrom, appliedDateTo]);
 
   useEffect(() => {
     setPage(1);
-  }, [appliedSearch, appliedTag, appliedCategory, appliedSubCategory]);
+  }, [appliedSearch, appliedTag, appliedCategory, appliedSubCategory, appliedDateFrom, appliedDateTo]);
 
   const updateFilters = useCallback(
-    (updates: Partial<{ search: string; tag: string; category: string; subCategory: string }>) => {
+    (updates: Partial<{ search: string; tag: string; category: string; subCategory: string; dateFrom: string; dateTo: string }>) => {
       const params = new URLSearchParams(paramString);
       if (updates.search !== undefined) {
         if (updates.search) {
@@ -120,6 +128,20 @@ export default function NewsList() {
           params.delete('subCategory');
         }
       }
+      if (updates.dateFrom !== undefined) {
+        if (updates.dateFrom) {
+          params.set('dateFrom', updates.dateFrom);
+        } else {
+          params.delete('dateFrom');
+        }
+      }
+      if (updates.dateTo !== undefined) {
+        if (updates.dateTo) {
+          params.set('dateTo', updates.dateTo);
+        } else {
+          params.delete('dateTo');
+        }
+      }
 
       const query = params.toString();
       const target = query ? `${pathname}?${query}` : pathname;
@@ -139,6 +161,8 @@ export default function NewsList() {
       if (appliedTag) params.set('tag', appliedTag);
       if (appliedCategory) params.set('category', appliedCategory);
       if (appliedSubCategory) params.set('subCategory', appliedSubCategory);
+      if (appliedDateFrom) params.set('dateFrom', appliedDateFrom);
+      if (appliedDateTo) params.set('dateTo', appliedDateTo);
 
       const response = await fetch(`/api/news/list?${params.toString()}`);
       const payload: ApiResponse = await response.json();
@@ -156,7 +180,7 @@ export default function NewsList() {
     } finally {
       setLoading(false);
     }
-  }, [page, appliedSearch, appliedTag, appliedCategory, appliedSubCategory]);
+  }, [page, appliedSearch, appliedTag, appliedCategory, appliedSubCategory, appliedDateFrom, appliedDateTo]);
 
   useEffect(() => {
     fetchArticles();
@@ -284,6 +308,34 @@ export default function NewsList() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="flex flex-col">
+              <label className="text-xs font-semibold uppercase tracking-[0.5em] text-slate-500 dark:text-stone-400">
+                {t.dateFromLabel}
+              </label>
+              <input
+                type="date"
+                className="mt-1 rounded-2xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-900 text-slate-900 dark:text-stone-50 px-3 py-2 text-sm"
+                value={dateFrom}
+                onChange={event => {
+                  setDateFrom(event.target.value);
+                  updateFilters({ dateFrom: event.target.value });
+                }}
+              />
+            </div>
+            <div className="flex flex-col">
+              <label className="text-xs font-semibold uppercase tracking-[0.5em] text-slate-500 dark:text-stone-400">
+                {t.dateToLabel}
+              </label>
+              <input
+                type="date"
+                className="mt-1 rounded-2xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-900 text-slate-900 dark:text-stone-50 px-3 py-2 text-sm"
+                value={dateTo}
+                onChange={event => {
+                  setDateTo(event.target.value);
+                  updateFilters({ dateTo: event.target.value });
+                }}
+              />
             </div>
           </div>
         </div>

@@ -13,6 +13,8 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get('category');
   const subCategory = searchParams.get('subCategory');
   const tag = searchParams.get('tag')?.trim();
+  const dateFrom = searchParams.get('dateFrom');
+  const dateTo = searchParams.get('dateTo');
 
   let query = supabase
     .from('articles')
@@ -38,6 +40,19 @@ export async function GET(request: NextRequest) {
 
   if (tag) {
     query = query.ilike('tags', `%${tag}%`);
+  }
+
+  // Add date range filtering
+  if (dateFrom) {
+    query = query.gte('published_date', dateFrom);
+  }
+
+  if (dateTo) {
+    // Add 1 day to include the entire dateTo day
+    const dateToEnd = new Date(dateTo);
+    dateToEnd.setDate(dateToEnd.getDate() + 1);
+    const dateToEndStr = dateToEnd.toISOString().split('T')[0];
+    query = query.lt('published_date', dateToEndStr);
   }
 
   const { data: articles, error, count } = await query;

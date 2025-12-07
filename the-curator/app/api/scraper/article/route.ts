@@ -36,55 +36,71 @@ async function fetchPageHtml(url: string): Promise<string> {
   const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV === 'production' || process.env.VERCEL_ENV === 'preview';
   
   let launchOptions: any;
+  let browser;
   
   if (isVercel) {
-    // On Vercel: use @sparticuz/chromium
+    // On Vercel: MUST use @sparticuz/chromium with chromium-browser executable
+    console.log('[Scraper] Vercel environment detected, using @sparticuz/chromium');
     try {
       const execPath = await chromium.executablePath();
-      console.log('[Scraper] Using Vercel chromium at:', execPath);
+      console.log('[Scraper] Chromium executable path:', execPath);
+      
+      if (!execPath) {
+        throw new Error('chromium.executablePath() returned empty');
+      }
+      
       launchOptions = {
         args: chromium.args,
         executablePath: execPath,
         headless: 'new' as any,
       };
+      
+      browser = await puppeteer.launch(launchOptions);
     } catch (chromiumErr) {
-      console.error('[Scraper] Failed to get chromium executable path:', chromiumErr instanceof Error ? chromiumErr.message : String(chromiumErr));
-      throw new Error('Vercel chromium unavailable');
+      const errorMsg = chromiumErr instanceof Error ? chromiumErr.message : String(chromiumErr);
+      console.error('[Scraper] Chromium launch failed on Vercel:', errorMsg);
+      // Return error instead of throwing to prevent 500 error
+      throw new Error(`Chromium unavailable on Vercel: ${errorMsg}`);
     }
   } else {
     // Local development: use local Chrome/Chromium
+    console.log('[Scraper] Local development, using system Chrome/Chromium');
     launchOptions = {
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     };
-  }
-  
-  let browser;
-  try {
-    browser = await puppeteer.launch(launchOptions);
-  } catch (launchErr) {
-    console.error('[Scraper] Browser launch failed:', launchErr instanceof Error ? launchErr.message : String(launchErr));
-    throw launchErr;
-  }
-  
-  const page = await browser.newPage();
-
-  await page.setRequestInterception(true);
-  page.on('request', (request) => {
-    const resourceType = request.resourceType();
-    if (['font', 'stylesheet', 'media', 'image'].includes(resourceType)) {
-      request.abort();
-    } else {
-      request.continue();
+    
+    try {
+      browser = await puppeteer.launch(launchOptions);
+    } catch (launchErr) {
+      const errorMsg = launchErr instanceof Error ? launchErr.message : String(launchErr);
+      console.error('[Scraper] Local browser launch failed:', errorMsg);
+      throw launchErr;
     }
-  });
+  }
+  
+  const page = await browser!.newPage();
 
-  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36');
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
-  await new Promise((resolve) => setTimeout(resolve, 1500));
-  const html = await page.content();
-  await browser.close();
-  return html;
+  try {
+    await page.setRequestInterception(true);
+    page.on('request', (request) => {
+      const resourceType = request.resourceType();
+      if (['font', 'stylesheet', 'media', 'image'].includes(resourceType)) {
+        request.abort();
+      } else {
+        request.continue();
+      }
+    });
+
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36');
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const html = await page.content();
+    return html;
+  } finally {
+    await page.close();
+    await browser!.close();
+  }
 }
 
 function buildScraperSource(category: ScraperCategory) {
