@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       // On Vercel: use @sparticuz/chromium
       launchOptions = {
         args: chromium.args,
-        executablePath: await chromium.executablePath('/tmp'),
+        executablePath: await chromium.executablePath(),  // No path parameter needed
         headless: 'new' as any,
       };
     } else {
