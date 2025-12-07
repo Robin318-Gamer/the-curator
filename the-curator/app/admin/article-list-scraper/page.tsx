@@ -13,12 +13,14 @@ export default function ArticleListScraperPage() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [categoriesScanned, setCategoriesScanned] = useState<number>(0);
+  const [limitWarning, setLimitWarning] = useState<string | null>(null);
 
   async function handleFetchArticles() {
     setLoading(true);
     setError(null);
     setArticles([]);
     setCategoriesScanned(0);
+    setLimitWarning(null);
     
     try {
       const res = await fetch('/api/scraper/article-list', {
@@ -27,6 +29,18 @@ export default function ArticleListScraperPage() {
         body: JSON.stringify({}),
       });
       
+      // Check if response is HTML (error page) instead of JSON
+      const contentType = res.headers.get('content-type');
+      if (contentType && !contentType.includes('application/json')) {
+        const htmlText = await res.text();
+        if (htmlText.includes('FUNCTION_INVOCATION_TIMEOUT')) {
+          setError('Request timeout: The scraper is taking too long (>10s limit on Vercel Hobby). Try reducing the number of categories or upgrade to Pro plan.');
+        } else {
+          setError(`Server returned HTML error page. Status: ${res.status}. Check Vercel logs for details.`);
+        }
+        return;
+      }
+      
       const data = await res.json();
       
       if (!data.success) {
@@ -34,9 +48,20 @@ export default function ArticleListScraperPage() {
       } else {
         setArticles(data.data.articles || []);
         setCategoriesScanned(data.data.categoriesScanned || 0);
+        
+        // Show warning if limit was applied
+        if (data.data.limitApplied) {
+          setLimitWarning(
+            `Note: Only scanned ${data.data.categoriesScanned} of ${data.data.totalCategoriesFound} categories due to Vercel 10-second timeout limit. Upgrade to Pro for unlimited execution time.`
+          );
+        }
       }
     } catch (err: any) {
-      setError(err.message || String(err));
+      if (err.message.includes('JSON')) {
+        setError('Server timeout or returned invalid response. This operation takes too long for Vercel free tier (10s limit). Consider upgrading or reducing scope.');
+      } else {
+        setError(err.message || String(err));
+      }
     } finally {
       setLoading(false);
     }
@@ -76,6 +101,13 @@ export default function ArticleListScraperPage() {
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded">
           Error: {error}
+        </div>
+      )}
+
+      {/* Limit Warning */}
+      {limitWarning && (
+        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded">
+          ⚠️ {limitWarning}
         </div>
       )}
 

@@ -12,6 +12,11 @@ export async function POST(_req: NextRequest) {
   try {
     const db = supabaseAdmin ?? supabase;
     
+    // VERCEL TIMEOUT PROTECTION: Limit to 3 categories max to stay under 10s timeout
+    const MAX_CATEGORIES = 3;
+    const MAX_EXECUTION_TIME = 9000; // 9 seconds (leave 1s buffer)
+    const startTime = Date.now();
+    
     // Launch Puppeteer with Vercel/serverless optimization using @sparticuz/chromium
     const isVercel = process.env.VERCEL === '1' || !process.env.PUPPETEER_EXECUTABLE_PATH;
     
@@ -93,10 +98,20 @@ export async function POST(_req: NextRequest) {
     
     console.log('[ArticleList] Found categories:', categoryUrls.size);
     
+    // LIMIT CATEGORIES to prevent timeout on Vercel free tier
+    const limitedCategories = Array.from(categoryUrls).slice(0, MAX_CATEGORIES);
+    console.log(`[ArticleList] Processing ${limitedCategories.length} of ${categoryUrls.size} categories (timeout protection)`);
+    
     // Step 2: Fetch articles from all categories
     const articlesMap = new Map<string, any>();
     
-    for (const categoryUrl of categoryUrls) {
+    for (const categoryUrl of limitedCategories) {
+      // Check timeout
+      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+        console.warn('[ArticleList] Approaching timeout, stopping early');
+        break;
+      }
+      
       try {
         console.log('[ArticleList] Fetching from:', categoryUrl);
         await page.goto(categoryUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
@@ -194,7 +209,10 @@ export async function POST(_req: NextRequest) {
       data: {
         articles,
         total: articles.length,
-        categoriesScanned: categoryUrls.size
+        categoriesScanned: limitedCategories.length,
+        totalCategoriesFound: categoryUrls.size,
+        limitApplied: categoryUrls.size > MAX_CATEGORIES,
+        timeoutProtection: true
       }
     });
     
