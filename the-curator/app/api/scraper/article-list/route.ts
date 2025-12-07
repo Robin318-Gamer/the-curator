@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
 import { supabase, supabaseAdmin } from '@/lib/db/supabase';
 
@@ -13,28 +13,41 @@ export async function POST(_req: NextRequest) {
     const db = supabaseAdmin ?? supabase;
     
     // Launch Puppeteer with Vercel/serverless optimization using @sparticuz/chromium
-    const launchOptions: any = {
-      args: chromium.args || ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-      executablePath: await chromium.executablePath(),
-      headless: true,
-    };
-
-    // Fallback for local development
-    if (!launchOptions.executablePath) {
-      launchOptions.args = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'];
+    const isVercel = process.env.VERCEL === '1' || !process.env.PUPPETEER_EXECUTABLE_PATH;
+    
+    let launchOptions: any;
+    
+    if (isVercel) {
+      // On Vercel: use @sparticuz/chromium
+      launchOptions = {
+        args: chromium.args,
+        executablePath: await chromium.executablePath('/tmp'),
+        headless: 'new' as any,
+      };
+    } else {
+      // Local development: use local Chrome/Chromium
+      const puppeteerRegular = await import('puppeteer');
+      browser = await puppeteerRegular.default.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      });
     }
 
-    try {
-      browser = await puppeteer.launch(launchOptions);
-    } catch (launchErr) {
-      const errorMsg = launchErr instanceof Error ? launchErr.message : String(launchErr);
-      console.error('[ArticleList] Failed to launch browser:', errorMsg);
-      
-      return Response.json({
-        success: false,
-        error: 'Browser not available on this server',
-        hint: 'For Vercel: ensure @sparticuz/chromium is installed (npm install @sparticuz/chromium). For local: run npx puppeteer browsers install chrome'
-      }, { status: 503 });
+    // Launch browser if not already launched (local dev case)
+    if (!browser && launchOptions) {
+      try {
+        browser = await puppeteer.launch(launchOptions);
+      } catch (launchErr) {
+        const errorMsg = launchErr instanceof Error ? launchErr.message : String(launchErr);
+        console.error('[ArticleList] Failed to launch browser:', errorMsg);
+        
+        return Response.json({
+          success: false,
+          error: 'Browser not available on this server',
+          details: errorMsg,
+          hint: 'For Vercel: ensure @sparticuz/chromium v143+ is installed. For local: run npx puppeteer browsers install chrome'
+        }, { status: 503 });
+      }
     }
 
     if (!browser) {
