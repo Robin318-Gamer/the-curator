@@ -206,7 +206,9 @@ export async function POST(request: NextRequest) {
           throw new Error(scrapeResult.error || "Scraper failed to return article data");
         }
 
-        const importResult = await importArticle(scrapeResult.data as ScrapedArticle, entry.url);
+        const importResult = await importArticle(scrapeResult.data as ScrapedArticle, entry.url, {
+          sourceKey: sourceKey,
+        });
 
         if (!importResult.success) {
           failed++;

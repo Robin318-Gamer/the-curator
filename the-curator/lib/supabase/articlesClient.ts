@@ -13,25 +13,27 @@ import { Article, ArticleImage, ScrapedArticle } from '@/lib/types/database';
 const dbClient = supabaseAdmin ?? supabase;
 
 /**
- * Get the HK01 news source UUID
- * Caches the result to avoid repeated queries
+ * Get news source UUID by source key
+ * Caches results to avoid repeated queries
  */
-let cachedSourceId: string | null = null;
+const cachedSourceIds = new Map<string, string>();
 
-async function getHK01SourceId(): Promise<string> {
-  if (cachedSourceId) return cachedSourceId;
+async function getSourceId(sourceKey: string = 'hk01'): Promise<string> {
+  if (cachedSourceIds.has(sourceKey)) {
+    return cachedSourceIds.get(sourceKey)!;
+  }
 
   const { data, error } = await dbClient
     .from('news_sources')
     .select('id')
-    .eq('source_key', 'hk01')
+    .eq('source_key', sourceKey)
     .single();
 
   if (error || !data) {
-    throw new Error('HK01 news source not found in database');
+    throw new Error(`News source '${sourceKey}' not found in database`);
   }
 
-  cachedSourceId = data.id;
+  cachedSourceIds.set(sourceKey, data.id);
   return data.id;
 }
 
@@ -39,12 +41,13 @@ async function getHK01SourceId(): Promise<string> {
  * Check if an article already exists in the database
  * Uses (source_id, source_article_id) as unique key for deduplication
  * 
- * @param sourceArticleId - The article ID from HK01 (8-digit number as string)
+ * @param sourceArticleId - The article ID (source-specific identifier)
+ * @param sourceKey - The source key (e.g., 'hk01', 'mingpao'). Defaults to 'hk01'
  * @returns true if article exists, false otherwise
  */
-export async function checkArticleExists(sourceArticleId: string): Promise<boolean> {
+export async function checkArticleExists(sourceArticleId: string, sourceKey: string = 'hk01'): Promise<boolean> {
   try {
-    const sourceId = await getHK01SourceId();
+    const sourceId = await getSourceId(sourceKey);
 
     const { data, error } = await dbClient
       .from('articles')
@@ -73,16 +76,18 @@ export async function checkArticleExists(sourceArticleId: string): Promise<boole
  * Create a new article in the database
  * Converts ScrapedArticle (from scraper) to Article (database format)
  * 
- * @param scrapedArticle - Article data from HK01 scraper
- * @param sourceUrl - Original URL from HK01
+ * @param scrapedArticle - Article data from scraper
+ * @param sourceUrl - Original URL from source
+ * @param sourceKey - The source key (e.g., 'hk01', 'mingpao'). Defaults to 'hk01'
  * @returns Created article with database ID
  */
 export async function createArticle(
   scrapedArticle: ScrapedArticle,
-  sourceUrl: string
+  sourceUrl: string,
+  sourceKey: string = 'hk01'
 ): Promise<Article> {
   try {
-    const sourceId = await getHK01SourceId();
+    const sourceId = await getSourceId(sourceKey);
 
     // Content is already in JSONB array format from scraper
     const contentArray = scrapedArticle.content || [];
@@ -303,6 +308,7 @@ async function markNewslistFailed(sourceArticleId: string | undefined, errorMess
 interface ImportArticleOptions {
   manageNewslistStatus?: boolean;
   skipProcessingStatus?: boolean;
+  sourceKey?: string;
 }
 
 export async function importArticle(
@@ -318,6 +324,7 @@ export async function importArticle(
 }> {
   const manageStatus = options?.manageNewslistStatus !== false;
   const skipProcessingStatus = options?.skipProcessingStatus === true;
+  const sourceKey = options?.sourceKey ?? 'hk01';
   const articleId = scrapedArticle.articleId ?? '';
   
   try {
@@ -326,7 +333,7 @@ export async function importArticle(
     }
 
     // Check if article already exists
-    const exists = articleId ? await checkArticleExists(articleId) : false;
+    const exists = articleId ? await checkArticleExists(articleId, sourceKey) : false;
 
     if (exists) {
       if (manageStatus && articleId) {
@@ -340,7 +347,7 @@ export async function importArticle(
     }
 
     // Create article
-    const article = await createArticle(scrapedArticle, sourceUrl);
+    const article = await createArticle(scrapedArticle, sourceUrl, sourceKey);
 
     // Create associated images
     if (scrapedArticle.articleImageList && scrapedArticle.articleImageList.length > 0) {
