@@ -6,6 +6,7 @@ import { hk01SourceConfig } from "@/lib/constants/sources";
 import { getSourceConfig } from "@/lib/constants/sourceRegistry";
 import { importArticle } from "@/lib/supabase/articlesClient";
 import type { ScrapedArticle } from "@/lib/types/database";
+import { logException, extractErrorDetails } from "@/lib/services/exceptionLogger";
 
 const MAX_BATCH = 25;
 const FALLBACK_SOURCE_CONFIG = hk01SourceConfig;
@@ -19,13 +20,44 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const body = await request.json().catch(() => ({}));
+  let requestBody: any;
+  try {
+    requestBody = await request.json().catch(() => ({}));
+  } catch (parseError) {
+    const errorDetails = extractErrorDetails(parseError);
+    await logException(dbClient, {
+      errorType: errorDetails.type,
+      errorMessage: errorDetails.message,
+      errorStack: errorDetails.stack,
+      endpoint: '/api/admin/newslist/process',
+      operation: 'parse_request_body',
+      requestMethod: 'POST',
+      requestUrl: request.url,
+      severity: 'error',
+    });
+    return NextResponse.json(
+      { success: false, message: "Invalid request body" },
+      { status: 400 }
+    );
+  }
+
+  const body = requestBody;
   const ids = Array.isArray(body?.ids) ? (body.ids as string[]).filter(Boolean) : [];
   const processAllPending = Boolean(body?.processAllPending);
   const requestedLimit = typeof body?.limit === "number" ? Math.max(1, body.limit) : MAX_BATCH;
   const limit = Math.min(MAX_BATCH, requestedLimit);
 
   if (!processAllPending && ids.length === 0) {
+    await logException(dbClient, {
+      errorType: 'ValidationError',
+      errorMessage: 'Missing required parameters: ids[] or processAllPending=true',
+      endpoint: '/api/admin/newslist/process',
+      operation: 'validate_request',
+      requestMethod: 'POST',
+      requestUrl: request.url,
+      requestBody: body,
+      severity: 'warning',
+    });
     return NextResponse.json(
       { success: false, message: "Provide ids[] or set processAllPending=true" },
       { status: 400 }
@@ -48,6 +80,17 @@ export async function POST(request: NextRequest) {
   const { data: entries, error } = await query;
 
   if (error) {
+    await logException(dbClient, {
+      errorType: 'DatabaseError',
+      errorMessage: error.message,
+      endpoint: '/api/admin/newslist/process',
+      operation: 'fetch_newslist_entries',
+      requestMethod: 'POST',
+      requestUrl: request.url,
+      requestBody: body,
+      severity: 'error',
+      metadata: { errorDetails: error },
+    });
     return NextResponse.json(
       { success: false, message: "Failed to load newslist entries", error: error.message },
       { status: 500 }
@@ -61,10 +104,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-  });
+  let browser;
+  try {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    });
+  } catch (launchError) {
+    const errorDetails = extractErrorDetails(launchError);
+    await logException(dbClient, {
+      errorType: errorDetails.type,
+      errorMessage: errorDetails.message,
+      errorStack: errorDetails.stack,
+      endpoint: '/api/admin/newslist/process',
+      operation: 'launch_browser',
+      requestMethod: 'POST',
+      requestUrl: request.url,
+      severity: 'critical',
+    });
+    return NextResponse.json(
+      { success: false, message: "Failed to launch browser", error: errorDetails.message },
+      { status: 500 }
+    );
+  }
 
   const results: Array<{
     id: string;
@@ -168,6 +230,33 @@ export async function POST(request: NextRequest) {
         await page.close();
       }
     }
+  } catch (globalError) {
+    const errorDetails = extractErrorDetails(globalError);
+    await logException(dbClient, {
+      errorType: errorDetails.type,
+      errorMessage: errorDetails.message,
+      errorStack: errorDetails.stack,
+      endpoint: '/api/admin/newslist/process',
+      operation: 'process_articles',
+      requestMethod: 'POST',
+      requestUrl: request.url,
+      requestBody: body,
+      severity: 'critical',
+      metadata: { processedCount: results.length, imported, existing, failed },
+    });
+    
+    await browser?.close();
+    
+    return NextResponse.json({
+      success: false,
+      message: "Processing failed with critical error",
+      error: errorDetails.message,
+      processed: results.length,
+      imported,
+      existing,
+      failed,
+      results,
+    }, { status: 500 });
   } finally {
     await browser.close();
   }
