@@ -100,16 +100,25 @@ export default function AdminLanding() {
   useEffect(() => {
     const bulkSaveAction = quickActions.find((action) => action.title === 'Bulk save');
     if (!bulkSaveAction || !automation['Bulk save']) return;
+    
     let isRunning = false;
     const runBulkSave = async () => {
       if (isRunning) return;
       isRunning = true;
       try {
+        console.log('[Admin] Running Bulk save automation...');
         await handleAction(bulkSaveAction);
+      } catch (err) {
+        console.error('[Admin] Bulk save automation error:', err);
       } finally {
         isRunning = false;
       }
     };
+    
+    // Run immediately on first load
+    runBulkSave();
+    
+    // Then run every 60 seconds
     const intervalId = setInterval(runBulkSave, 60_000);
     return () => clearInterval(intervalId);
   }, [automation['Bulk save'], handleAction]);
@@ -118,16 +127,25 @@ export default function AdminLanding() {
   useEffect(() => {
     const scrapeAction = quickActions.find((action) => action.title === 'Scrape next article');
     if (!scrapeAction || !automation['Scrape next article']) return;
+    
     let isRunning = false;
     const runScrape = async () => {
       if (isRunning) return;
       isRunning = true;
       try {
+        console.log('[Admin] Running Scrape next article automation...');
         await handleAction(scrapeAction);
+      } catch (err) {
+        console.error('[Admin] Scrape next article automation error:', err);
       } finally {
         isRunning = false;
       }
     };
+    
+    // Run immediately on first load
+    runScrape();
+    
+    // Then run every 60 seconds
     const intervalId = setInterval(runScrape, 60_000);
     return () => clearInterval(intervalId);
   }, [automation['Scrape next article'], handleAction]);
