@@ -213,13 +213,17 @@ export async function getNextScraperCategoryForSource(sourceKey: string): Promis
   }
 
   const categories = (data ?? []) as ScraperCategory[];
-  const categoryWithZone = categories.find((category) => {
-    const metadata = (category.metadata as { zoneUrl?: string } | null) ?? null;
-    return typeof metadata?.zoneUrl === 'string' && metadata.zoneUrl.length > 0;
+  const categoryWithUrl = categories.find((category) => {
+    const metadata = (category.metadata as { zoneUrl?: string; sectionUrl?: string } | null) ?? null;
+    // Support both zoneUrl (HK01) and sectionUrl (MingPao)
+    return (
+      (typeof metadata?.zoneUrl === 'string' && metadata.zoneUrl.length > 0) ||
+      (typeof metadata?.sectionUrl === 'string' && metadata.sectionUrl.length > 0)
+    );
   });
 
-  if (categoryWithZone) {
-    return categoryWithZone;
+  if (categoryWithUrl) {
+    return categoryWithUrl;
   }
 
   if (sourceKey === FALLBACK_SOURCE_KEY) {
