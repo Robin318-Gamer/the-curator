@@ -259,6 +259,19 @@ export async function POST(request: NextRequest) {
           status: importResult.isNew ? "imported" : "existing",
           message: importResult.message,
         });
+
+        // Mark newslist entry as extracted (successfully processed)
+        const { error: updateError } = await dbClient
+          .from("newslist")
+          .update({
+            status: "extracted",
+            last_processed_at: new Date().toISOString(),
+          })
+          .eq("id", entry.id);
+        
+        if (updateError) {
+          console.error(`[Process] Failed to mark newslist ${entry.id} as extracted:`, updateError);
+        }
       } catch (entryError) {
         failed++;
         const errorMessage = entryError instanceof Error ? entryError.message : String(entryError);
