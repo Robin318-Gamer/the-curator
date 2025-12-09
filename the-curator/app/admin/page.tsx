@@ -96,10 +96,10 @@ export default function AdminLanding() {
     return () => clearInterval(intervalId);
   }, []);
 
-  // Automation for Bulk save HK01
+  // Automation for Bulk save
   useEffect(() => {
-    const bulkSaveAction = quickActions.find((action) => action.title === 'Bulk save HK01');
-    if (!bulkSaveAction || !automation['Bulk save HK01']) return;
+    const bulkSaveAction = quickActions.find((action) => action.title === 'Bulk save');
+    if (!bulkSaveAction || !automation['Bulk save']) return;
     let isRunning = false;
     const runBulkSave = async () => {
       if (isRunning) return;
@@ -112,7 +112,7 @@ export default function AdminLanding() {
     };
     const intervalId = setInterval(runBulkSave, 60_000);
     return () => clearInterval(intervalId);
-  }, [automation['Bulk save HK01'], handleAction]);
+  }, [automation['Bulk save'], handleAction]);
 
   // Automation for Scrape next article
   useEffect(() => {
@@ -186,13 +186,13 @@ export default function AdminLanding() {
                   : 'POST'}
               </span>
             </button>
-            {(action.title === 'Bulk save HK01' || action.title === 'Scrape next article') && (
+            {(action.title === 'Bulk save' || action.title === 'Scrape next article') && (
               <label style={{ marginLeft: '0.5rem', fontSize: '0.95rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <input
                   type="checkbox"
                   checked={automation[action.title]}
                   onChange={e => setAutomation(a => ({ ...a, [action.title]: e.target.checked }))}
-                  style={{ accentColor: action.title === 'Bulk save HK01' ? '#91f3ff' : '#ffbb33' }}
+                  style={{ accentColor: action.title === 'Bulk save' ? '#91f3ff' : '#ffbb33' }}
                 />
                 Automation
               </label>
