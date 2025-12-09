@@ -1,23 +1,45 @@
 import { NextRequest } from 'next/server';
 import { ArticleScraper } from '@/lib/scrapers/ArticleScraper';
-import { hk01SourceConfig } from '@/lib/constants/sources';
-import type { NewsSource } from '@/lib/types/database';
+import { getSourceConfig, detectSourceFromUrl, isSourceSupported } from '@/lib/constants/sourceRegistry';
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
-
-// For demo: only HK01 supported. Add more sources as needed.
-const SCRAPER_CONFIGS: Record<string, NewsSource> = {
-  hk01: hk01SourceConfig,
-};
 
 export async function POST(req: NextRequest) {
   let browser;
   try {
-    const { url, sourceKey = 'hk01' } = await req.json();
+    const { url, sourceKey } = await req.json();
     if (!url || typeof url !== 'string') {
       return Response.json({ success: false, error: 'Missing or invalid URL.' }, { status: 400 });
     }
-    const config = SCRAPER_CONFIGS[sourceKey] || hk01SourceConfig;
+    
+    // Determine source: use provided sourceKey, or auto-detect from URL
+    let resolvedSourceKey = sourceKey;
+    if (!resolvedSourceKey) {
+      resolvedSourceKey = detectSourceFromUrl(url);
+      if (!resolvedSourceKey) {
+        return Response.json({ 
+          success: false, 
+          error: 'Could not detect source from URL. Please specify sourceKey.' 
+        }, { status: 400 });
+      }
+      console.log('[Scraper] Auto-detected source:', resolvedSourceKey);
+    }
+    
+    // Validate source is supported
+    if (!isSourceSupported(resolvedSourceKey)) {
+      return Response.json({ 
+        success: false, 
+        error: `Unsupported source: ${resolvedSourceKey}` 
+      }, { status: 400 });
+    }
+    
+    const config = getSourceConfig(resolvedSourceKey);
+    if (!config) {
+      return Response.json({ 
+        success: false, 
+        error: `Failed to load configuration for source: ${resolvedSourceKey}` 
+      }, { status: 500 });
+    }
     
     // Timeout protection for Vercel (8 second limit for this function)
     const startTime = Date.now();
@@ -120,8 +142,9 @@ export async function POST(req: NextRequest) {
       window.scrollTo(0, document.body.scrollHeight);
     });
     
-    // Wait 2 seconds for lazy-loaded images (reduced from 3)
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Wait for images to load (increased from 2 to 5 seconds for lazy loading)
+    console.log('[Scraper] Waiting for lazy-loaded images...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
     
     // Check time remaining
     const elapsed = Date.now() - startTime;

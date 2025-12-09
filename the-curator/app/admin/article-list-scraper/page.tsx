@@ -9,11 +9,14 @@ interface Article {
 }
 
 export default function ArticleListScraperPage() {
+  const [sourceKey, setSourceKey] = useState<string>('hk01'); // Default to HK01
   const [loading, setLoading] = useState(false);
   const [articles, setArticles] = useState<Article[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [categoriesScanned, setCategoriesScanned] = useState<number>(0);
   const [limitWarning, setLimitWarning] = useState<string | null>(null);
+  const [customUrl, setCustomUrl] = useState<string>('');
+  const [useCustomUrl, setUseCustomUrl] = useState<boolean>(false);
 
   async function handleFetchArticles() {
     setLoading(true);
@@ -23,10 +26,27 @@ export default function ArticleListScraperPage() {
     setLimitWarning(null);
     
     try {
+      // Detect source from custom URL if provided
+      let detectedSourceKey = sourceKey;
+      if (useCustomUrl && customUrl.trim()) {
+        if (customUrl.includes('mingpao.com')) {
+          detectedSourceKey = 'mingpao';
+        } else if (customUrl.includes('hk01.com')) {
+          detectedSourceKey = 'hk01';
+        }
+      }
+      
+      const payload: any = { sourceKey: detectedSourceKey };
+      
+      // If custom URL is provided and enabled, include it in the payload
+      if (useCustomUrl && customUrl.trim()) {
+        payload.customUrl = customUrl.trim();
+      }
+      
       const res = await fetch('/api/scraper/article-list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify(payload),
       });
       
       // Check if response is HTML (error page) instead of JSON
@@ -75,26 +95,83 @@ export default function ArticleListScraperPage() {
 
   return (
     <div className="max-w-7xl mx-auto py-10 px-4">
-      <h1 className="text-3xl font-bold mb-6">Article List Scraper</h1>
-      <p className="text-gray-600 mb-6">
-        Automatically discovers all categories from HK01.com and fetches all unique articles
-      </p>
+      <h1 className="text-3xl font-bold mb-4">Article List Scanner</h1>
+      <div className="mb-6 p-4 bg-blue-50 border border-blue-200 text-blue-900 rounded">
+        <p className="font-semibold mb-2">📋 Display-Only Mode</p>
+        <p className="text-sm">
+          This tool scans categories from a news source to discover articles. Articles are <strong>NOT saved to the database automatically</strong>. 
+          Use the &quot;Scrape&quot; button to open individual articles in the URL Scraper for detailed testing and manual saving.
+        </p>
+        <p className="text-sm mt-2 text-blue-800">
+          💡 <strong>Local Development:</strong> Timeout protection is disabled. You can scan all sections without restrictions.
+        </p>
+      </div>
       
-      {/* Fetch Button */}
-      <div className="mb-6 flex items-center gap-4">
-        <button
-          className="bg-blue-600 text-white px-6 py-2 rounded disabled:opacity-50 hover:bg-blue-700"
-          disabled={loading}
-          onClick={handleFetchArticles}
-        >
-          {loading ? 'Scanning All Categories...' : 'Fetch All Articles from HK01.com'}
-        </button>
+      {/* Source Selection and Fetch Button */}
+      <div className="mb-6">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="flex-shrink-0">
+            <label className="block text-sm font-medium mb-2">News Source</label>
+            <select
+              className="border rounded px-4 py-2"
+              value={sourceKey}
+              onChange={(e) => setSourceKey(e.target.value)}
+              disabled={loading}
+            >
+              <option value="hk01">HK01 (香港01)</option>
+              <option value="mingpao">Ming Pao (明報)</option>
+            </select>
+          </div>
+          
+          <div className="flex-shrink-0 mt-7">
+            <button
+              className="bg-blue-600 text-white px-6 py-2 rounded disabled:opacity-50 hover:bg-blue-700"
+              disabled={loading}
+              onClick={handleFetchArticles}
+            >
+              {loading ? 'Scanning...' : '🔍 Scan All Categories'}
+            </button>
+          </div>
+          
+          {loading && (
+            <span className="text-sm text-gray-500">
+              This may take a few minutes...
+            </span>
+          )}
+        </div>
         
-        {loading && (
-          <span className="text-sm text-gray-500">
-            This may take a few minutes...
-          </span>
-        )}
+        {/* Custom URL Input */}
+        <div className="border-t pt-4">
+          <div className="flex items-start gap-4">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="useCustomUrl"
+                checked={useCustomUrl}
+                onChange={(e) => setUseCustomUrl(e.target.checked)}
+                disabled={loading}
+                className="w-4 h-4 text-blue-600"
+              />
+              <label htmlFor="useCustomUrl" className="text-sm font-medium">
+                Use Custom URL
+              </label>
+            </div>
+            
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder="Enter HK01 or MingPao section/category URL (e.g., https://news.mingpao.com/pns/要聞/section/20251208/s00001)"
+                value={customUrl}
+                onChange={(e) => setCustomUrl(e.target.value)}
+                disabled={loading || !useCustomUrl}
+                className="w-full border rounded px-4 py-2 text-sm disabled:bg-gray-100"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                When enabled, only this URL will be scanned for articles instead of all categories
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Error Message */}
@@ -170,7 +247,7 @@ export default function ArticleListScraperPage() {
       {/* Empty State */}
       {!loading && articles.length === 0 && !error && (
         <div className="text-center py-12 text-gray-500">
-            <p className="text-lg">Click &quot;Fetch All Articles&quot; to discover articles from all HK01 categories</p>
+            <p className="text-lg">Click &quot;Scan Articles&quot; to discover articles from all {sourceKey === 'hk01' ? 'HK01' : 'Ming Pao'} categories</p>
         </div>
       )}
     </div>

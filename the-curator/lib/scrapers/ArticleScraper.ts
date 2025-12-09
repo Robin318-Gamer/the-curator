@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import type { NewsSource, ScrapeResult } from '@/lib/types/database';
+import { MingPaoScraper } from './sourceStrategies';
 
 export class ArticleScraper {
   private source: NewsSource;
@@ -10,189 +11,224 @@ export class ArticleScraper {
 
   /**
    * Scrape an article from raw HTML using configured selectors
-   * Extracts: title, author, publish date, category, content, images, summary
+   * Uses source-specific strategies when available
    */
   async scrapeArticle(html: string, url?: string): Promise<ScrapeResult> {
     const startTime = Date.now();
 
     try {
       const $ = cheerio.load(html);
-      type SelectorConfig = {
-        title?: string;
-        content?: string;
-        author?: string;
-        author_selector?: string;
-        publishDate?: string;
-        published_date?: string;
-        category?: string;
-        breadcrumb_channel?: string;
-        breadcrumb_zone?: string;
-      };
-      const rawSelectors: SelectorConfig = this.source.article_page_config?.selectors ?? {};
-      const selectors = {
-        title: rawSelectors.title ?? 'h1',
-        author: rawSelectors.author ?? rawSelectors.author_selector ?? '[data-testid="article-author"]',
-        publishDate:
-          rawSelectors.publishDate ?? rawSelectors.published_date ?? 'time[datetime]',
-        content: rawSelectors.content ?? '#article-content-section',
-        category:
-          rawSelectors.category ?? rawSelectors.breadcrumb_channel ?? '[data-testid="article-breadcrumb-channel"]',
-        breadcrumbZone:
-          rawSelectors.breadcrumb_zone ?? '[data-testid="article-breadcrumb-zone"]',
-      };
+      const sourceKey = this.source.source_key;
 
-      // Extract article ID from data-article-id attribute or URL
+      // Extract title
+      let title = '';
+      if (sourceKey === 'mingpao') {
+        title = MingPaoScraper.extractTitle($);
+      } else if (sourceKey === 'hk01') {
+        title = $('h1#articleTitle').first().text().trim();
+      } else {
+        const titleElement = $(this.source.article_page_config?.selectors?.title || 'h1').first();
+        title = titleElement.text().trim();
+      }
+
+      if (!title) {
+        throw new Error('Title not found');
+      }
+
+      // Extract article ID
       let articleId = '';
-      const articleIdAttr = $('[data-article-id]').first().attr('data-article-id');
-      if (articleIdAttr) {
-        articleId = articleIdAttr;
-      } else if (url) {
-        // Extract from URL: /zone/channel/articleId/...
-        const match = url.match(/\/(\d+)\//);
-        if (match) {
-          articleId = match[1];
+      if (sourceKey === 'mingpao') {
+        articleId = MingPaoScraper.extractArticleId(url);
+      } else if (sourceKey === 'hk01') {
+        const articleIdAttr = $('[data-article-id]').first().attr('data-article-id');
+        if (articleIdAttr) {
+          articleId = articleIdAttr;
+        } else if (url) {
+          const match = url.match(/\/(\d+)\//);
+          if (match) {
+            articleId = match[1];
+          }
         }
       }
 
-      // Extract title from h1#articleTitle
-      const titleElement = $(selectors.title).first();
-      const title = titleElement.text().trim();
-      if (!title) {
-        throw new Error(`Title not found with selector: ${selectors.title}`);
-      }
-
-      // Extract author from data-testid="article-author" or from h1 data-author attribute
-      // Priority: article-author div (contains all authors) > h1 data-author (may only have first author)
+      // Extract author
       let author = '';
-      if (selectors.author) {
-        // Use the first occurrence of article-author which should have all authors
-        const authorElement = $(selectors.author).first();
-        const authorText = authorElement.text();
-        // Clean up author text - remove "撰文：" prefix if present
-        author = authorText.replace(/撰文：|撰文:/, '').trim();
-      }
-      
-      // Fallback to h1 data-author if article-author didn't work
-      if (!author && titleElement.attr('data-author')) {
-        author = titleElement.attr('data-author') || '';
+      if (sourceKey === 'mingpao') {
+        author = MingPaoScraper.extractAuthor($);
+      } else if (sourceKey === 'hk01') {
+        const authorElement = $('[data-testid="article-author"]').first();
+        author = authorElement.text().replace(/撰文：|撰文:/, '').trim();
+        if (!author) {
+          const titleElement = $('h1#articleTitle').first();
+          author = titleElement.attr('data-author') || '';
+        }
       }
 
-      // Extract category and sub-category from breadcrumb
-      // Breadcrumb structure: first link = category (zone), second link = sub-category (channel)
+      // Extract category
       let category = '';
       let subCategory = '';
-      
-      // Try to extract from breadcrumb links
-      const breadcrumbItems = $(
-        `${selectors.breadcrumbZone}, ${selectors.category}`
-      );
-      if (breadcrumbItems.length >= 1) {
-        // First item is category
-        category = breadcrumbItems.eq(0).text().trim();
-      }
-      if (breadcrumbItems.length >= 2) {
-        // Second item is sub-category
-        subCategory = breadcrumbItems.eq(1).text().trim();
-      }
-      
-      // Fallback: use h1 data-category if breadcrumb not found (use only if different from extracted)
-      if (!category && titleElement.attr('data-category')) {
-        category = titleElement.attr('data-category') || '';
-      }
-
-      // Extract publish date from time datetime attribute
-      let publishedDate = '';
-      const publishSelectorChain = [
-        selectors.publishDate,
-        '[data-testid="article-publish-info"] time[datetime]',
-        '[data-testid="article-publish-info"] time',
-        'time[datetime]',
-        'time',
-      ].filter(Boolean);
-
-      for (const selector of publishSelectorChain) {
-        const candidate = $(selector).first();
-        if (!candidate.length) {
-          continue;
+      if (sourceKey === 'mingpao') {
+        const cats = MingPaoScraper.extractCategories($, url);
+        category = cats.category;
+        subCategory = cats.subCategory;
+      } else if (sourceKey === 'hk01') {
+        const breadcrumbItems = $('[data-testid="article-breadcrumb-zone"], [data-testid="article-breadcrumb-channel"]');
+        if (breadcrumbItems.length >= 1) {
+          category = breadcrumbItems.eq(0).text().trim();
         }
-        publishedDate = candidate.attr('datetime') || candidate.attr('data-utc') || candidate.text().trim();
-        if (publishedDate) {
-          break;
+        if (breadcrumbItems.length >= 2) {
+          subCategory = breadcrumbItems.eq(1).text().trim();
+        }
+      }
+
+      // Extract publish date
+      let publishedDate = '';
+      if (sourceKey === 'mingpao') {
+        const dateDiv = $('div[itemprop="datePublished"].date, div.date').first();
+        if (dateDiv.length) {
+          const dateText = dateDiv.text().trim();
+          console.log('[MingPao] Found date text:', dateText);
+          // Parse Chinese date format: 2025年12月8日星期一
+          const yearMatch = dateText.match(/(\d{4})年/);
+          const monthMatch = dateText.match(/(\d{1,2})月/);
+          const dayMatch = dateText.match(/(\d{1,2})日/);
+          if (yearMatch && monthMatch && dayMatch) {
+            const year = yearMatch[1];
+            const month = monthMatch[1].padStart(2, '0');
+            const day = dayMatch[1].padStart(2, '0');
+            publishedDate = `${year}-${month}-${day}`;
+            console.log('[MingPao] Parsed date:', publishedDate);
+          } else {
+            console.log('[MingPao] Date parsing failed - no matches found');
+          }
+        } else {
+          console.log('[MingPao] Date div not found');
+        }
+      } else {
+        const publishSelectorChain = [
+          this.source.article_page_config?.selectors?.publishDate,
+          '[data-testid="article-publish-info"] time[datetime]',
+          '[data-testid="article-publish-info"] time',
+          'time[datetime]',
+          'time',
+        ].filter(Boolean);
+
+        for (const selector of publishSelectorChain) {
+          const candidate = $(selector as string).first();
+          if (!candidate.length) {
+            continue;
+          }
+          publishedDate = candidate.attr('datetime') || candidate.attr('data-utc') || candidate.text().trim();
+          if (publishedDate) {
+            break;
+          }
         }
       }
 
       if (!publishedDate) {
-        throw new Error(`Publish date not found with selector: ${selectors.publishDate}`);
+        throw new Error('Publish date not found');
       }
 
-      // Extract main image from article-top-section (featured image)
-      let mainImage = '';
-      let mainImageFull = ''; // Keep full URL with query params
+      // Extract main image and all images
+      let mainImageUrl = '';
       let mainImageCaption = '';
-      const topSection = $('[data-testid="article-top-section"]');
-      if (topSection.length) {
-        const topImg = topSection.find('img').first();
-        const imgSrc = topImg.attr('src') || topImg.attr('data-src') || '';
-        mainImageFull = imgSrc;
-        // Extract base URL without query parameters for comparison
-        mainImage = imgSrc.split('?')[0];
-        console.log('[Scraper] Main image found:', mainImage);
-
-        const captionCandidate = topSection
-          .find('[data-testid="article-top-section-caption"], figcaption, .img-caption, [data-testid="article-top-section"] span')
-          .map((_, el) => $(el).text().trim())
-          .get()
-          .filter(Boolean);
-
-        if (captionCandidate.length > 0) {
-          mainImageCaption = captionCandidate[0];
-        } else if (topImg.attr('alt')) {
-          mainImageCaption = topImg.attr('alt') || '';
-        } else if (topImg.attr('title')) {
-          mainImageCaption = topImg.attr('title') || '';
-        }
-      } else {
-        console.log('[Scraper] No article-top-section found');
-      }
-      
-      // Extract all images in the article body (Article Image List)
-      // Pattern: images inside article-grid__content-section .lazyload-wrapper, but EXCLUDE the main image
       let articleImageList: Array<{ url: string; caption?: string }> = [];
-      console.log('[Scraper] Looking for article-grid__content-section .lazyload-wrapper img elements...');
-      $('.article-grid__content-section .lazyload-wrapper').each((_, wrapper) => {
-        const $wrapper = $(wrapper);
-        const imgElem = $wrapper.find('img').first();
-        const imgSrc = imgElem.attr('src') || imgElem.attr('data-src') || '';
-        // Extract base URL without query parameters for comparison
-        const baseSrc = imgSrc.split('?')[0];
-        console.log('[Scraper] Found image:', baseSrc);
+
+      if (sourceKey === 'mingpao') {
+        // Get all images with captions
+        const allImages = MingPaoScraper.extractAllImages($);
         
-        // Get caption from title/alt attribute or from the caption span
-        let caption = imgElem.attr('title') || imgElem.attr('alt') || '';
-        if (!caption) {
-          // Look for caption in the next sibling span with class img-caption
-          const captionSpan = $wrapper.parent().find('.img-caption').first();
-          caption = captionSpan.text().trim();
+        // Use first carousel image as main photo
+        if (allImages.length > 0) {
+          mainImageUrl = allImages[0].url;
+          mainImageCaption = allImages[0].caption;
+          // ALL carousel images go to article gallery (including first one)
+          articleImageList = allImages;
+        } else {
+          // Fallback to dedicated main image if no carousel images
+          const mainImg = MingPaoScraper.extractMainImage($);
+          mainImageUrl = mainImg.mainImageFull;
+          mainImageCaption = mainImg.mainImageCaption;
+        }
+      } else if (sourceKey === 'hk01') {
+        // HK01 extraction logic
+        const topSection = $('[data-testid="article-top-section"]');
+        if (topSection.length) {
+          const topImg = topSection.find('img').first();
+          mainImageUrl = topImg.attr('src') || topImg.attr('data-src') || '';
+          const captionCandidate = topSection
+            .find('[data-testid="article-top-section-caption"], figcaption, .img-caption')
+            .text()
+            .trim();
+          mainImageCaption = captionCandidate;
+        }
+
+        // Get article images
+        $('.article-grid__content-section .lazyload-wrapper').each((_, wrapper) => {
+          const $wrapper = $(wrapper);
+          const imgElem = $wrapper.find('img').first();
+          const imgSrc = imgElem.attr('src') || imgElem.attr('data-src') || '';
+          let caption = imgElem.attr('title') || imgElem.attr('alt') || '';
+          if (!caption) {
+            const captionSpan = $wrapper.parent().find('.img-caption').first();
+            caption = captionSpan.text().trim();
+          }
+          if (imgSrc && imgSrc !== mainImageUrl) {
+            articleImageList.push({ url: imgSrc, caption: caption || undefined });
+          }
+        });
+      }
+
+      // Extract content
+      let contentBlocks: Array<{ type: 'heading' | 'paragraph'; text: string }> = [];
+      let contentText = '';
+
+      if (sourceKey === 'mingpao') {
+        // MingPao content is in <article class="txt4"> (preferred) or <div#lower> (fallback)
+        let article = $('article.txt4').first();
+        if (!article.length) {
+          article = $('div#lower').first();
         }
         
-        // Only include if it's not the main image and not already in list
-        if (baseSrc && baseSrc !== mainImage && !articleImageList.some(img => img.url.split('?')[0] === baseSrc)) {
-          articleImageList.push({
-            url: imgSrc,
-            caption: caption || undefined
+        if (article.length) {
+          // Clone to avoid modifying original HTML
+          const clonedArticle = article.clone();
+          
+          // Remove "相關字詞" paragraph
+          clonedArticle.find('p').each((_, elem) => {
+            if ($(elem).text().includes('相關字詞')) {
+              $(elem).remove();
+            }
+          });
+          
+          // Remove "日報新聞-相關報道" section
+          clonedArticle.find('div').each((_, elem) => {
+            if ($(elem).attr('id') === 'pnsautornews') {
+              $(elem).remove();
+            }
+          });
+          
+          // Now extract content from the cleaned version
+          clonedArticle.find('h2, p').each((_, elem) => {
+            const tagName = elem.tagName?.toLowerCase();
+            const text = $(elem).text().trim();
+            if (text && text.length > 0) {
+              if (tagName === 'h2') {
+                contentBlocks.push({ type: 'heading', text });
+                contentText += `### ${text}\n\n`;
+              } else if (tagName === 'p') {
+                contentBlocks.push({ type: 'paragraph', text });
+                contentText += text + '\n\n';
+              }
+            }
           });
         }
-      });
-      console.log('[Scraper] Total article images found:', articleImageList.length);
-
-      // Extract content - get all paragraphs and headings while preserving structure
-      const contentBlocks: Array<{ type: 'heading' | 'paragraph'; text: string }> = [];
-      let contentText = '';
-      if (selectors.content) {
-        const contentElement = $(selectors.content);
-        
-        // Get the parent article container to maintain order of p and h3 elements
+      } else {
+        // HK01 content extraction
+        const contentSelector = this.source.article_page_config?.selectors?.content || '#article-content-section';
+        const contentElement = $(contentSelector as string);
         const articleContainer = $('#article-content-section');
+
         if (articleContainer.length) {
           articleContainer.find('h3, p').each((_, elem) => {
             const tagName = elem.tagName?.toLowerCase();
@@ -208,7 +244,6 @@ export class ArticleScraper {
             }
           });
         } else {
-          // Fallback: Get all direct paragraphs
           contentElement.find('p').each((_, elem) => {
             const text = $(elem).text().trim();
             if (text) {
@@ -217,32 +252,16 @@ export class ArticleScraper {
             }
           });
         }
-
-        // Fallback: if no content found, get all text content
-        if (contentBlocks.length === 0) {
-          const text = contentElement.text().trim();
-          if (text) {
-            contentBlocks.push({ type: 'paragraph', text });
-            contentText = text;
-          }
-        }
       }
 
       if (contentBlocks.length === 0) {
-        throw new Error(`Content not found with selector: ${selectors.content}`);
+        throw new Error('Content not found');
       }
 
-      // Extract all images from article (main image + article image list)
-      const images: string[] = [];
-      if (mainImageFull) {
-        images.push(mainImageFull);
-      }
-
-      // Extract update date from article-publish-info
+      // Extract update date
       let updateDate = '';
       const publishInfo = $('[data-testid="article-publish-info"]');
       if (publishInfo.length) {
-        // Find the span containing "更新："
         const updateSpan = publishInfo.find('span').filter((_, el) => {
           return $(el).text().includes('更新：');
         });
@@ -251,7 +270,6 @@ export class ArticleScraper {
           if (updateTime) {
             updateDate = updateTime;
           } else {
-            // Fallback: extract text after "更新："
             const text = updateSpan.text();
             const match = text.match(/更新：(.+)/);
             if (match) {
@@ -261,19 +279,30 @@ export class ArticleScraper {
         }
       }
 
-      // Extract tags from article-tag
-      const tags: string[] = [];
-      $('[data-testid="article-tag"] a').each((_, el) => {
-        const tagText = $(el).find('span').text().trim();
-        if (tagText && !tags.includes(tagText)) {
-          tags.push(tagText);
-        }
-      });
+      // Extract tags
+      let tags: string[] = [];
+      if (sourceKey === 'mingpao') {
+        tags = MingPaoScraper.extractTags($);
+      } else {
+        // HK01 tags extraction
+        $('[data-testid="article-tag"] a').each((_, el) => {
+          const tagText = $(el).find('span').text().trim();
+          if (tagText && !tags.includes(tagText)) {
+            tags.push(tagText);
+          }
+        });
+      }
 
-      // Extract summary (first paragraph or meta description)
+      // Extract summary
       let summary = '';
       if (contentText) {
         summary = contentText.split('\n\n')[0].substring(0, 200);
+      }
+
+      // Extract all images
+      const images: string[] = [];
+      if (mainImageUrl) {
+        images.push(mainImageUrl);
       }
 
       const executionTime = Date.now() - startTime;
@@ -289,7 +318,7 @@ export class ArticleScraper {
           subCategory: subCategory || undefined,
           publishedDate,
           updatedDate: updateDate || undefined,
-          mainImageUrl: mainImageFull || undefined,
+          mainImageUrl: mainImageUrl || undefined,
           mainImageCaption: mainImageCaption || undefined,
           articleImageList: articleImageList.length > 0 ? articleImageList : undefined,
           tags: tags.length > 0 ? tags : undefined,

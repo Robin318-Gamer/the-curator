@@ -5,19 +5,41 @@ import { useSearchParams } from 'next/navigation';
 function ScraperUrlTestContent() {
   const searchParams = useSearchParams();
   const [url, setUrl] = useState('');
+  const [sourceKey, setSourceKey] = useState<string>('auto'); // 'auto', 'hk01', 'mingpao'
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<{ success: boolean; message: string } | null>(null);
+  const [detectedSource, setDetectedSource] = useState<string | null>(null);
 
-  // Load URL from query parameter if present
+  // Simple source detection from URL
+  const detectSource = (urlStr: string): string | null => {
+    try {
+      const hostname = new URL(urlStr).hostname.replace('www.', '');
+      if (hostname.includes('hk01.com')) return 'hk01';
+      if (hostname.includes('mingpao.com')) return 'mingpao';
+    } catch {
+      return null;
+    }
+    return null;
+  };
+
+  // Update detected source when URL changes
+  useEffect(() => {
+    if (url) {
+      const detected = detectSource(url);
+      setDetectedSource(detected);
+    } else {
+      setDetectedSource(null);
+    }
+  }, [url]);
+
+  // Load URL from query parameter if present (but don't auto-scrape)
   useEffect(() => {
     const urlParam = searchParams.get('url');
     if (urlParam) {
       setUrl(urlParam);
-      // Auto-trigger scraping if URL is provided
-      handleTest(urlParam);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -29,10 +51,16 @@ function ScraperUrlTestContent() {
     setResult(null);
     setImportStatus(null);
     try {
+      // Determine which sourceKey to send (undefined for auto-detection)
+      const requestSourceKey = sourceKey === 'auto' ? undefined : sourceKey;
+      
       const res = await fetch('/api/scraper/url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: targetUrl }),
+        body: JSON.stringify({ 
+          url: targetUrl,
+          ...(requestSourceKey && { sourceKey: requestSourceKey })
+        }),
       });
       
       // Check if response is valid JSON
@@ -116,7 +144,29 @@ function ScraperUrlTestContent() {
   return (
     <div className="max-w-2xl mx-auto py-10 px-4">
       <h1 className="text-2xl font-bold mb-4">Scraper URL Test</h1>
+      
+      {/* Source Selection */}
       <div className="mb-4">
+        <label className="block text-sm font-medium mb-2">News Source</label>
+        <select
+          className="border rounded px-3 py-2 w-full"
+          value={sourceKey}
+          onChange={(e) => setSourceKey(e.target.value)}
+        >
+          <option value="auto">Auto-detect from URL</option>
+          <option value="hk01">HK01 (香港01)</option>
+          <option value="mingpao">Ming Pao (明報)</option>
+        </select>
+        {detectedSource && sourceKey === 'auto' && (
+          <div className="mt-1 text-sm text-blue-600">
+            ℹ️ Detected: {detectedSource === 'hk01' ? 'HK01' : detectedSource === 'mingpao' ? 'Ming Pao' : detectedSource}
+          </div>
+        )}
+      </div>
+      
+      {/* URL Input */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-2">Article URL</label>
         <input
           type="text"
           className="border rounded px-3 py-2 w-full"
@@ -125,6 +175,7 @@ function ScraperUrlTestContent() {
           onChange={e => setUrl(e.target.value)}
         />
       </div>
+      
       <button
         className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
         disabled={loading || !url}
