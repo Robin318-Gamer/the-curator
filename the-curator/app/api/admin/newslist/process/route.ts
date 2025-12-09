@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
         headless: true,
       });
     } else {
-      // Use local puppeteer for development
+      // Use local puppeteer for development - uses local Chrome/Chromium
       const puppeteerLocal = await import("puppeteer");
       browser = await puppeteerLocal.default.launch({
         headless: true,
@@ -128,9 +128,16 @@ export async function POST(request: NextRequest) {
     }
   } catch (launchError) {
     const errorDetails = extractErrorDetails(launchError);
+    
+    // For development, provide helpful error message about Chrome installation
+    let helpfulMessage = errorDetails.message;
+    if (!isProduction && errorDetails.message.includes('spawn')) {
+      helpfulMessage = 'Chrome not found. Run: npx puppeteer browsers install chrome';
+    }
+    
     await logException(dbClient, {
       errorType: errorDetails.type,
-      errorMessage: errorDetails.message,
+      errorMessage: helpfulMessage,
       errorStack: errorDetails.stack,
       endpoint: '/api/admin/newslist/process',
       operation: 'launch_browser',
@@ -140,7 +147,7 @@ export async function POST(request: NextRequest) {
       metadata: { isProduction, environment: process.env.NODE_ENV },
     });
     return NextResponse.json(
-      { success: false, message: "Failed to launch browser", error: errorDetails.message },
+      { success: false, message: "Failed to launch browser", error: helpfulMessage },
       { status: 500 }
     );
   }
