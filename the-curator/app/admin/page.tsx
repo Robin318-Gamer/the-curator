@@ -5,22 +5,17 @@ import Link from 'next/link';
 
 const quickActions = [
   {
-    title: 'Bulk save (HK01)',
-    description: 'Fetch article URLs from next HK01 category and add to newslist queue.',
+    title: 'Bulk save',
+    description: 'Fetch article URLs from next scheduled category (uses scheduler rotation).',
     href: '/api/automation/bulk-save/hk01',
     variant: 'glow-cyan',
-  },
-  {
-    title: 'Bulk save (MingPao)',
-    description: 'Fetch article URLs from next MingPao category and add to newslist queue.',
-    href: '/api/automation/bulk-save/mingpao',
-    variant: 'glow-blue',
   },
   {
     title: 'Scrape next article',
     description: 'Process next pending article from newslist (auto-detects source).',
     href: '/api/admin/newslist/process',
     variant: 'glow-amber',
+    body: { processAllPending: true, limit: 1 },
   },
   {
     title: 'Inspect automation history',
@@ -41,8 +36,7 @@ export default function AdminLanding() {
 
   const [status, setStatus] = useState<Record<string, { state: 'idle' | 'loading' | 'success' | 'error'; message?: string }>>({});
   const [automation, setAutomation] = useState<{ [key: string]: boolean }>({
-    'Bulk save (HK01)': true,
-    'Bulk save (MingPao)': true,
+    'Bulk save': true,
     'Scrape next article': true,
   });
   const [metrics, setMetrics] = useState<{ avgSeed?: string; activeSources?: number; pendingRows?: number }>({});
@@ -54,7 +48,12 @@ export default function AdminLanding() {
       [action.title]: { state: 'loading' },
     }));
     try {
-      const response = await fetch(action.href, { method: 'POST' });
+      const options: RequestInit = { method: 'POST' };
+      if (action.body) {
+        options.headers = { 'Content-Type': 'application/json' };
+        options.body = JSON.stringify(action.body);
+      }
+      const response = await fetch(action.href, options);
       if (!response.ok) {
         throw new Error(`${response.status} ${response.statusText}`);
       }
