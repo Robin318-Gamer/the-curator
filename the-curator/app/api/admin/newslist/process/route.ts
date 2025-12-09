@@ -119,9 +119,34 @@ export async function POST(request: NextRequest) {
         headless: true,
       });
     } else {
-      // Use local puppeteer for development - uses local Chrome/Chromium
-      const puppeteerLocal = await import("puppeteer");
-      browser = await puppeteerLocal.default.launch({
+      // Use local Chrome for development
+      // Get the Chrome executable path that was installed via: npx puppeteer browsers install chrome
+      const os = await import('os');
+      const path = await import('path');
+      const fs = await import('fs');
+      
+      // Try common Chrome installation paths
+      const possiblePaths = [
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+        path.join(os.homedir(), '.cache', 'puppeteer', 'chrome', 'win64-131.0.6778.204', 'chrome-win64', 'chrome.exe'),
+        path.join(process.cwd(), 'node_modules', 'puppeteer', '.local-chromium', 'win64-1095492', 'chrome-win', 'chrome.exe'),
+      ];
+      
+      let chromePath = possiblePaths.find(p => {
+        try {
+          return fs.existsSync(p);
+        } catch {
+          return false;
+        }
+      });
+      
+      if (!chromePath) {
+        throw new Error('Chrome not found. Run: npx puppeteer browsers install chrome');
+      }
+      
+      browser = await puppeteer.launch({
+        executablePath: chromePath,
         headless: true,
         args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
       });
