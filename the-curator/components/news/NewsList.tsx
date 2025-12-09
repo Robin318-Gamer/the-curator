@@ -23,6 +23,7 @@ type ApiResponse = {
   pageSize: number;
   categories: string[];
   subCategoriesByCategory: Record<string, string[]>;
+  sources?: Array<{ key: string; name: string }>;
   message?: string;
 };
 
@@ -34,6 +35,7 @@ const translations = {
   searchPlaceholder: '輸入標題關鍵字',
   tagPlaceholder: '輸入標籤關鍵字',
   searchButton: '查詢',
+  sourceLabel: '來源',
   categoryLabel: '分類',
   subCategoryLabel: '子分類',
   dateFromLabel: '開始日期',
@@ -53,6 +55,7 @@ export default function NewsList() {
   const paramString = searchParams?.toString() ?? '';
   const appliedSearch = searchParams?.get('search') ?? '';
   const appliedTag = searchParams?.get('tag') ?? '';
+  const appliedSource = searchParams?.get('source') ?? '';
   const appliedCategory = searchParams?.get('category') ?? '';
   const appliedSubCategory = searchParams?.get('subCategory') ?? '';
   const appliedDateFrom = searchParams?.get('dateFrom') ?? '';
@@ -60,6 +63,7 @@ export default function NewsList() {
 
   const [searchInput, setSearchInput] = useState(appliedSearch);
   const [tagInput, setTagInput] = useState(appliedTag);
+  const [source, setSource] = useState(appliedSource);
   const [category, setCategory] = useState(appliedCategory);
   const [subCategory, setSubCategory] = useState(appliedSubCategory);
   const [dateFrom, setDateFrom] = useState(appliedDateFrom);
@@ -70,6 +74,7 @@ export default function NewsList() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
+  const [sources, setSources] = useState<Array<{ key: string; name: string }>>([]);
   const [subCategoriesByCategory, setSubCategoriesByCategory] = useState<Record<string, string[]>>({});
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
@@ -86,19 +91,20 @@ export default function NewsList() {
   useEffect(() => {
     setSearchInput(appliedSearch);
     setTagInput(appliedTag);
+    setSource(appliedSource);
     setCategory(appliedCategory);
     setSubCategory(appliedSubCategory);
     setDateFrom(appliedDateFrom);
     setDateTo(appliedDateTo);
     setPage(1);
-  }, [appliedSearch, appliedTag, appliedCategory, appliedSubCategory, appliedDateFrom, appliedDateTo]);
+  }, [appliedSearch, appliedTag, appliedSource, appliedCategory, appliedSubCategory, appliedDateFrom, appliedDateTo]);
 
   useEffect(() => {
     setPage(1);
-  }, [appliedSearch, appliedTag, appliedCategory, appliedSubCategory, appliedDateFrom, appliedDateTo]);
+  }, [appliedSearch, appliedTag, appliedSource, appliedCategory, appliedSubCategory, appliedDateFrom, appliedDateTo]);
 
   const updateFilters = useCallback(
-    (updates: Partial<{ search: string; tag: string; category: string; subCategory: string; dateFrom: string; dateTo: string }>) => {
+    (updates: Partial<{ search: string; tag: string; source: string; category: string; subCategory: string; dateFrom: string; dateTo: string }>) => {
       const params = new URLSearchParams(paramString);
       if (updates.search !== undefined) {
         if (updates.search) {
@@ -112,6 +118,13 @@ export default function NewsList() {
           params.set('tag', updates.tag);
         } else {
           params.delete('tag');
+        }
+      }
+      if (updates.source !== undefined) {
+        if (updates.source) {
+          params.set('source', updates.source);
+        } else {
+          params.delete('source');
         }
       }
       if (updates.category !== undefined) {
@@ -159,6 +172,7 @@ export default function NewsList() {
       params.set('limit', String(PAGE_SIZE));
       if (appliedSearch) params.set('search', appliedSearch);
       if (appliedTag) params.set('tag', appliedTag);
+      if (appliedSource) params.set('source', appliedSource);
       if (appliedCategory) params.set('category', appliedCategory);
       if (appliedSubCategory) params.set('subCategory', appliedSubCategory);
       if (appliedDateFrom) params.set('dateFrom', appliedDateFrom);
@@ -173,6 +187,7 @@ export default function NewsList() {
 
       setTotal(payload.total || 0);
       setCategories(payload.categories || []);
+      setSources(payload.sources || []);
       setSubCategoriesByCategory(payload.subCategoriesByCategory || {});
       setArticles(prev => (page === 1 ? payload.data : [...prev, ...payload.data]));
     } catch (err) {
@@ -180,7 +195,7 @@ export default function NewsList() {
     } finally {
       setLoading(false);
     }
-  }, [page, appliedSearch, appliedTag, appliedCategory, appliedSubCategory, appliedDateFrom, appliedDateTo]);
+  }, [page, appliedSearch, appliedTag, appliedSource, appliedCategory, appliedSubCategory, appliedDateFrom, appliedDateTo]);
 
   useEffect(() => {
     fetchArticles();
@@ -274,6 +289,27 @@ export default function NewsList() {
             </button>
           </form>
           <div className="flex flex-wrap gap-3">
+            <div className="flex flex-col">
+              <label className="text-xs font-semibold uppercase tracking-[0.5em] text-slate-500 dark:text-stone-400">
+                {t.sourceLabel}
+              </label>
+              <select
+                className="mt-1 rounded-2xl border border-slate-300 dark:border-stone-600 bg-white dark:bg-stone-900 text-slate-900 dark:text-stone-50 px-3 py-2 text-sm"
+                value={source}
+                onChange={event => {
+                  const value = event.target.value;
+                  setSource(value);
+                  updateFilters({ source: value });
+                }}
+              >
+                <option value="">全部來源</option>
+                {sources.map(s => (
+                  <option key={s.key} value={s.key}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="flex flex-col">
               <label className="text-xs font-semibold uppercase tracking-[0.5em] text-slate-500 dark:text-stone-400">
                 {t.categoryLabel}

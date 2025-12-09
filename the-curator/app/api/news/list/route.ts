@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
   const tag = searchParams.get('tag')?.trim();
   const dateFrom = searchParams.get('dateFrom');
   const dateTo = searchParams.get('dateTo');
+  const sourceKey = searchParams.get('source')?.trim();
 
   let query = supabase
     .from('articles')
@@ -55,6 +56,19 @@ export async function GET(request: NextRequest) {
     query = query.lt('published_date', dateToEndStr);
   }
 
+  // Filter by source if specified
+  if (sourceKey) {
+    const { data: sourceData } = await supabase
+      .from('news_sources')
+      .select('id')
+      .eq('source_key', sourceKey)
+      .single();
+    
+    if (sourceData?.id) {
+      query = query.eq('source_id', sourceData.id);
+    }
+  }
+
   const { data: articles, error, count } = await query;
 
   if (error) {
@@ -90,6 +104,15 @@ export async function GET(request: NextRequest) {
     }
   });
 
+  // Fetch available sources
+  const { data: sourcesData } = await supabase
+    .from('news_sources')
+    .select('source_key, name')
+    .eq('is_active', true)
+    .order('name');
+
+  const sources = (sourcesData || []).map(s => ({ key: s.source_key, name: s.name }));
+
   return NextResponse.json({
     success: true,
     data: articles || [],
@@ -98,5 +121,6 @@ export async function GET(request: NextRequest) {
     pageSize: limit,
     categories,
     subCategoriesByCategory,
+    sources,
   });
 }
