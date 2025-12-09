@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
-const quickActions = [
+interface QuickAction {
+  title: string;
+  description: string;
+  href: string;
+  variant: string;
+  body?: Record<string, any>;
+}
+
+const quickActions: QuickAction[] = [
   {
     title: 'Bulk save',
     description: 'Fetch article URLs from next scheduled category (uses scheduler rotation).',
@@ -42,7 +50,7 @@ export default function AdminLanding() {
   const [metrics, setMetrics] = useState<{ avgSeed?: string; activeSources?: number; pendingRows?: number }>({});
 
 
-  const handleAction = useCallback(async (action: typeof quickActions[number]) => {
+  const handleAction = useCallback(async (action: QuickAction) => {
     setStatus((prev) => ({
       ...prev,
       [action.title]: { state: 'loading' },
