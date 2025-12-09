@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server';
-import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
 import { supabase, supabaseAdmin } from '@/lib/db/supabase';
 import { getSourceConfig, isSourceSupported } from '@/lib/constants/sourceRegistry';
