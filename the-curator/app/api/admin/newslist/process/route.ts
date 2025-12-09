@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import puppeteer from "puppeteer";
+import puppeteer from "puppeteer-core";
+import chromium from "@sparticuz/chromium";
 import { supabaseAdmin, supabase } from "@/lib/db/supabase";
 import { ArticleScraper } from "@/lib/scrapers/ArticleScraper";
 import { hk01SourceConfig } from "@/lib/constants/sources";
@@ -10,6 +11,9 @@ import { logException, extractErrorDetails } from "@/lib/services/exceptionLogge
 
 const MAX_BATCH = 25;
 const FALLBACK_SOURCE_CONFIG = hk01SourceConfig;
+
+// Check if running in production (Vercel)
+const isProduction = process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production';
 
 export async function POST(request: NextRequest) {
   const dbClient = supabaseAdmin ?? supabase;
@@ -106,10 +110,22 @@ export async function POST(request: NextRequest) {
 
   let browser;
   try {
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-    });
+    if (isProduction) {
+      // Use chromium for serverless environment (Vercel)
+      browser = await puppeteer.launch({
+        args: chromium.args,
+        defaultViewport: { width: 1920, height: 1080 },
+        executablePath: await chromium.executablePath(),
+        headless: true,
+      });
+    } else {
+      // Use local puppeteer for development
+      const puppeteerLocal = await import("puppeteer");
+      browser = await puppeteerLocal.default.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+      });
+    }
   } catch (launchError) {
     const errorDetails = extractErrorDetails(launchError);
     await logException(dbClient, {
@@ -121,6 +137,7 @@ export async function POST(request: NextRequest) {
       requestMethod: 'POST',
       requestUrl: request.url,
       severity: 'critical',
+      metadata: { isProduction, environment: process.env.NODE_ENV },
     });
     return NextResponse.json(
       { success: false, message: "Failed to launch browser", error: errorDetails.message },
@@ -159,7 +176,7 @@ export async function POST(request: NextRequest) {
         await page.waitForSelector('[data-testid="article-top-section"]', { timeout: 5000 }).catch(() => {
           /* continue even if selector missing */
         });
-        await page.evaluate(() => {
+        await (page.evaluate as any)(() => {
           window.scrollTo(0, document.body.scrollHeight);
         });
         await new Promise(resolve => setTimeout(resolve, 2500));

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Admin Actions</title>
+</head>
+<body>
+    <h1>Test Admin Actions</h1>
+    
+    <button id="testScrape">Test Scrape Next Article</button>
+    <button id="testBulkSave">Test Bulk Save</button>
+    
+    <pre id="output"></pre>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        document.getElementById('testScrape').addEventListener('click', async () => {
+            output.textContent = 'Testing scrape next article...\n';
+            
+            const options = {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ processAllPending: true, limit: 1 })
+            };
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/admin/newslist/process', options);
+                const data = await response.json();
+                output.textContent += `Status: ${response.status}\n`;
+                output.textContent += `Response: ${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                output.textContent += `Error: ${error.message}`;
+            }
+        });
+        
+        document.getElementById('testBulkSave').addEventListener('click', async () => {
+            output.textContent = 'Testing bulk save...\n';
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/automation/bulk-save/hk01', { method: 'POST' });
+                const data = await response.json();
+                output.textContent += `Status: ${response.status}\n`;
+                output.textContent += `Response: ${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                output.textContent += `Error: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Scroll to trigger lazy loading
-    await page.evaluate(() => {
+    await (page.evaluate as any)(() => {
       window.scrollTo(0, document.body.scrollHeight);
     });
     

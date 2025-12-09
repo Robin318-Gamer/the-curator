@@ -205,13 +205,13 @@ export async function POST(req: NextRequest) {
         }
         
         // Scroll to load more articles
-        await page.evaluate(() => {
+        await (page.evaluate as any)(() => {
           window.scrollTo(0, document.body.scrollHeight / 2);
         });
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         // Debug: Dump the entire page HTML structure to understand what we're dealing with
-        const pageInfo = await page.evaluate(() => {
+        const pageInfo = await (page.evaluate as any)(() => {
           return {
             title: document.title,
             bodyLength: document.body.innerHTML.length,
@@ -232,7 +232,7 @@ export async function POST(req: NextRequest) {
         console.log('[ArticleList] About to evaluate page for source:', sourceKey);
         let links: string[] = [];
         try {
-          links = await page.evaluate((srcKey) => {
+          links = await (page.evaluate as any)((srcKey: string) => {
             const anchors = Array.from(document.querySelectorAll('a[href]'));
             
             // For MingPao, look for all article links within the headline section
