@@ -54,19 +54,11 @@ export async function POST(req: NextRequest) {
     // Better Vercel detection - check for Vercel runtime environment
     const isVercelBrowser = process.env.VERCEL === '1' || process.env.VERCEL_ENV === 'production' || process.env.VERCEL_ENV === 'preview';
     
-    
-    let launchOptions: any;
-    
     if (isVercelBrowser) {
       // On Vercel: use @sparticuz/chromium
       try {
         const execPath = await chromium.executablePath();
         console.log('[ArticleList] Using Vercel chromium at:', execPath);
-        launchOptions = {
-          args: chromium.args,
-          executablePath: execPath,  // No path parameter needed
-          headless: 'new' as any,
-        };
       } catch (chromiumErr) {
         console.error('[ArticleList] Failed to get chromium executable path:', chromiumErr instanceof Error ? chromiumErr.message : String(chromiumErr));
         return Response.json({ 
