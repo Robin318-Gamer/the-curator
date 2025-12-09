@@ -3,13 +3,12 @@ import puppeteer from "puppeteer";
 import { supabaseAdmin, supabase } from "@/lib/db/supabase";
 import { ArticleScraper } from "@/lib/scrapers/ArticleScraper";
 import { hk01SourceConfig } from "@/lib/constants/sources";
+import { getSourceConfig } from "@/lib/constants/sourceRegistry";
 import { importArticle } from "@/lib/supabase/articlesClient";
 import type { ScrapedArticle } from "@/lib/types/database";
 
 const MAX_BATCH = 25;
-const SOURCE_MAP = {
-  hk01: hk01SourceConfig,
-};
+const FALLBACK_SOURCE_CONFIG = hk01SourceConfig;
 
 export async function POST(request: NextRequest) {
   const dbClient = supabaseAdmin ?? supabase;
@@ -104,14 +103,17 @@ export async function POST(request: NextRequest) {
         await new Promise(resolve => setTimeout(resolve, 2500));
         const html = await page.content();
 
-          // Normalize entry.source whether DB returned an object or an array
-          let sourceKey = "hk01";
-          const srcCandidate = Array.isArray(entry.source) ? entry.source[0] : entry.source;
-          if (srcCandidate && typeof srcCandidate === "object") {
-            // use a type assertion to avoid TS narrowing to `never` for unknown DB shapes
-            sourceKey = (srcCandidate as any)?.source_key ?? "hk01";
-          }
-        const scraper = new ArticleScraper(SOURCE_MAP[sourceKey as keyof typeof SOURCE_MAP] ?? hk01SourceConfig);
+        // Normalize entry.source whether DB returned an object or an array
+        let sourceKey = "hk01";
+        const srcCandidate = Array.isArray(entry.source) ? entry.source[0] : entry.source;
+        if (srcCandidate && typeof srcCandidate === "object") {
+          // use a type assertion to avoid TS narrowing to `never` for unknown DB shapes
+          sourceKey = (srcCandidate as any)?.source_key ?? "hk01";
+        }
+        
+        // Get source config using sourceRegistry (supports both HK01 and MingPao)
+        const sourceConfig = getSourceConfig(sourceKey) ?? FALLBACK_SOURCE_CONFIG;
+        const scraper = new ArticleScraper(sourceConfig);
         const scrapeResult = await scraper.scrapeArticle(html, entry.url);
 
         if (!scrapeResult.success || !scrapeResult.data) {
