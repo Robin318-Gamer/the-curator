@@ -285,7 +285,7 @@ export async function POST(req: NextRequest) {
             
             if (sourceKey === 'mingpao') {
               // MingPao: [fullUrl, category, date, sectionCode, articleId, titleSlug]
-              const [, categoryEncoded, date, sectionCode, artId, slug] = match;
+              const [, categoryEncoded, _date, _sectionCode, artId, slug] = match;
               category = decodeURIComponent(categoryEncoded);
               articleId = artId; // Use the actual article ID
               titleSlug = decodeURIComponent(slug).replace(/-/g, ' ');
