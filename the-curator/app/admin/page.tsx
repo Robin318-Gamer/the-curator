@@ -6,14 +6,20 @@ import Link from 'next/link';
 const quickActions = [
   {
     title: 'Bulk save HK01',
-    description: 'Seed fresh links for the HK01 scheduler.',
+    description: 'Seed fresh article links from HK01 scheduler category.',
     href: '/api/automation/bulk-save/hk01',
     variant: 'glow-cyan',
   },
   {
+    title: 'Bulk save MingPao',
+    description: 'Seed fresh article links from MingPao scheduler category.',
+    href: '/api/automation/bulk-save/mingpao',
+    variant: 'glow-blue',
+  },
+  {
     title: 'Scrape next article',
-    description: 'Trigger /api/scraper/article once the queue is populated.',
-    href: '/api/scraper/article',
+    description: 'Process pending articles from newslist queue (supports all sources).',
+    href: '/api/admin/newslist/process',
     variant: 'glow-amber',
   },
   {
@@ -36,6 +42,7 @@ export default function AdminLanding() {
   const [status, setStatus] = useState<Record<string, { state: 'idle' | 'loading' | 'success' | 'error'; message?: string }>>({});
   const [automation, setAutomation] = useState<{ [key: string]: boolean }>({
     'Bulk save HK01': true,
+    'Bulk save MingPao': true,
     'Scrape next article': true,
   });
   const [metrics, setMetrics] = useState<{ avgSeed?: string; activeSources?: number; pendingRows?: number }>({});
