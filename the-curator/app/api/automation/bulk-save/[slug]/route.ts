@@ -67,8 +67,9 @@ async function scrapeHK01Articles(zoneUrl?: string): Promise<ArticleCandidate[]>
   return Array.from(articles.values()).sort((a, b) => b.articleId.localeCompare(a.articleId));
 }
 
-async function scrapeMingPaoArticles(): Promise<ArticleCandidate[]> {
-  const sectionUrls = [
+async function scrapeMingPaoArticles(sectionUrl?: string): Promise<ArticleCandidate[]> {
+  // If sectionUrl provided, use it; otherwise fallback to hardcoded list for backward compatibility
+  const sectionUrls = sectionUrl ? [sectionUrl] : [
     'https://news.mingpao.com/pns/%E8%A6%81%E8%81%9E/section/latest/s00001',
     'https://news.mingpao.com/pns/%E6%B8%AF%E8%81%9E/section/latest/s00002',
     'https://news.mingpao.com/pns/%E7%B6%93%E6%BF%9F/section/latest/s00004',
@@ -175,7 +176,33 @@ export async function POST(_request: NextRequest, { params }: { params: RoutePar
       console.log('[BulkSave] Fetching HK01 zone', zoneUrl, '(', selectedCategory.slug, ')');
       candidates = await scrapeHK01Articles(zoneUrl);
       console.log('[BulkSave] Completed fetch for', zoneUrl, '— discovered', candidates.length, 'articles');
+    } else if (sourceConfig.key === 'mingpao') {
+      // Use scheduler for MingPao too
+      selectedCategory = await getNextScraperCategoryForSource(sourceConfig.key);
+      if (!selectedCategory) {
+        // Fallback to all sections if no scheduler category found
+        console.log('[BulkSave] No MingPao scheduler category, fetching all sections');
+        candidates = await scrapeMingPaoArticles();
+      } else {
+        const metadata = (selectedCategory.metadata as { sectionUrl?: string } | null) ?? null;
+        const sectionUrl = metadata?.sectionUrl;
+        if (!sectionUrl) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Scheduler category ${selectedCategory.slug} is missing a sectionUrl in metadata.`,
+            },
+            { status: 422 }
+          );
+        }
+
+        zoneContext = { slug: selectedCategory.slug, name: selectedCategory.name, url: sectionUrl };
+        console.log('[BulkSave] Fetching MingPao section', sectionUrl, '(', selectedCategory.slug, ')');
+        candidates = await scrapeMingPaoArticles(sectionUrl);
+        console.log('[BulkSave] Completed fetch for', sectionUrl, '— discovered', candidates.length, 'articles');
+      }
     } else {
+      // Other sources - use hardcoded approach
       candidates = await scrapeMingPaoArticles();
     }
   } catch (error) {
@@ -239,7 +266,8 @@ export async function POST(_request: NextRequest, { params }: { params: RoutePar
     zoneContext ? `for ${zoneContext.slug}` : ''
   );
 
-  if (sourceConfig.key === 'hk01' && selectedCategory) {
+  // Update last_run_at for any source that used scheduler
+  if (selectedCategory) {
     try {
       await updateScraperCategoryLastRun(selectedCategory.id, new Date().toISOString());
       if (zoneContext) {
