@@ -199,31 +199,23 @@ export async function getNextScraperCategoryForSource(sourceKey: string): Promis
     return null;
   }
 
+  // Iterate through enabled categories ordered by last_run_at desc (least recently run first)
   const { data, error } = await client
     .from(CATEGORIES_TABLE)
     .select(`*, ${CATEGORY_SOURCE_RELATION}`)
     .eq('is_enabled', true)
     .eq('source_id', sourceId)
-    .order('last_run_at', { ascending: true, nullsFirst: true })
+    .order('last_run_at', { ascending: false, nullsFirst: true })
     .order('priority', { ascending: true })
-    .limit(20);
+    .limit(1);
 
   if (error && error.code !== 'PGRST116') {
     throw error;
   }
 
-  const categories = (data ?? []) as ScraperCategory[];
-  const categoryWithUrl = categories.find((category) => {
-    const metadata = (category.metadata as { zoneUrl?: string; sectionUrl?: string } | null) ?? null;
-    // Support both zoneUrl (HK01) and sectionUrl (MingPao)
-    return (
-      (typeof metadata?.zoneUrl === 'string' && metadata.zoneUrl.length > 0) ||
-      (typeof metadata?.sectionUrl === 'string' && metadata.sectionUrl.length > 0)
-    );
-  });
-
-  if (categoryWithUrl) {
-    return categoryWithUrl;
+  const category = (data?.[0] as ScraperCategory) ?? null;
+  if (category) {
+    return category;
   }
 
   if (sourceKey === FALLBACK_SOURCE_KEY) {

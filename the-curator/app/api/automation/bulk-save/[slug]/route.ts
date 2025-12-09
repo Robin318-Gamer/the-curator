@@ -162,20 +162,24 @@ export async function POST(_request: NextRequest, { params }: { params: RoutePar
 
       const metadata = (selectedCategory.metadata as { zoneUrl?: string } | null) ?? null;
       const zoneUrl = metadata?.zoneUrl;
-      if (!zoneUrl) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Scheduler category ${selectedCategory.slug} is missing a zoneUrl in metadata.`,
-          },
-          { status: 422 }
-        );
+      
+      // If category doesn't have zoneUrl, use zone number based on category slug or fetch all zones
+      let url = zoneUrl;
+      if (!url) {
+        // Try to extract zone ID from slug (e.g., "3" from "3-體育")
+        const zoneMatch = selectedCategory.slug?.match(/^(\d+)/);
+        if (zoneMatch) {
+          url = `https://www.hk01.com/zone/${zoneMatch[1]}`;
+        } else {
+          // Fallback to fetch all zones
+          url = undefined;
+        }
       }
 
-      zoneContext = { slug: selectedCategory.slug, name: selectedCategory.name, url: zoneUrl };
-      console.log('[BulkSave] Fetching HK01 zone', zoneUrl, '(', selectedCategory.slug, ')');
-      candidates = await scrapeHK01Articles(zoneUrl);
-      console.log('[BulkSave] Completed fetch for', zoneUrl, '— discovered', candidates.length, 'articles');
+      zoneContext = { slug: selectedCategory.slug, name: selectedCategory.name, url: url || 'all-zones' };
+      console.log('[BulkSave] Fetching HK01 zone', url || 'all zones', '(', selectedCategory.slug, ')');
+      candidates = await scrapeHK01Articles(url);
+      console.log('[BulkSave] Completed fetch for', url || 'all zones', '— discovered', candidates.length, 'articles');
     } else if (sourceConfig.key === 'mingpao') {
       // Use scheduler for MingPao too
       selectedCategory = await getNextScraperCategoryForSource(sourceConfig.key);
@@ -186,20 +190,18 @@ export async function POST(_request: NextRequest, { params }: { params: RoutePar
       } else {
         const metadata = (selectedCategory.metadata as { sectionUrl?: string } | null) ?? null;
         const sectionUrl = metadata?.sectionUrl;
-        if (!sectionUrl) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: `Scheduler category ${selectedCategory.slug} is missing a sectionUrl in metadata.`,
-            },
-            { status: 422 }
-          );
+        
+        // If category doesn't have sectionUrl, try to use slug or fetch all
+        let url = sectionUrl;
+        if (!url) {
+          // For MingPao, without sectionUrl, fetch all sections
+          url = undefined;
         }
 
-        zoneContext = { slug: selectedCategory.slug, name: selectedCategory.name, url: sectionUrl };
-        console.log('[BulkSave] Fetching MingPao section', sectionUrl, '(', selectedCategory.slug, ')');
-        candidates = await scrapeMingPaoArticles(sectionUrl);
-        console.log('[BulkSave] Completed fetch for', sectionUrl, '— discovered', candidates.length, 'articles');
+        zoneContext = { slug: selectedCategory.slug, name: selectedCategory.name, url: url || 'all-sections' };
+        console.log('[BulkSave] Fetching MingPao section', url || 'all sections', '(', selectedCategory.slug, ')');
+        candidates = await scrapeMingPaoArticles(url);
+        console.log('[BulkSave] Completed fetch for', url || 'all sections', '— discovered', candidates.length, 'articles');
       }
     } else {
       // Other sources - use hardcoded approach

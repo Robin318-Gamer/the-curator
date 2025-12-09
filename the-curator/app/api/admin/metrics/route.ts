@@ -14,16 +14,14 @@ export async function GET(_req: NextRequest) {
     if (sourcesError) throw sourcesError;
     const activeSources = sourcesData?.length ?? 0;
 
-    // Get pending newslist rows that are either:
-    // 1. Status = 'pending' (never processed)
-    // 2. Status = 'failed' AND attempt_count < 3 (eligible for retry)
-    const { data: pendingData, error: pendingError } = await db
+    // Get pending newslist rows count using COUNT(*)
+    const { error: pendingError, count: pendingCount } = await db
       .from('newslist')
-      .select('id', { count: 'exact' })
-      .or('status.eq.pending,and(status.eq.failed,attempt_count.lt.3)');
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending');
 
     if (pendingError) throw pendingError;
-    const pendingRows = pendingData?.length ?? 0;
+    const pendingRows = pendingCount ?? 0;
 
     // Get average automation seed time from automation_history
     // Average time between runs (in seconds)
