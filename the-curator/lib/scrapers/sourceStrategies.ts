@@ -176,6 +176,7 @@ export class MingPaoScraper {
   /**
    * Extract main image from MingPao gallery structure
    * MingPao uses: <div id="topimage" style="display: block;"> with album_big
+   * Returns empty if no image found - DON'T use fallback to random fs.mingpao.com images (like weather icons)
    */
   static extractMainImage($: cheerio.CheerioAPI) {
     // Primary: Look in topimage div for first image
@@ -203,16 +204,8 @@ export class MingPaoScraper {
       }
     }
     
-    // Fallback: generic image selectors
-    const img = $('img[src*="fs.mingpao.com"]').first();
-    if (img.length) {
-      const imgSrc = img.attr('src') || img.attr('data-original') || '';
-      if (imgSrc) {
-        const mainImage = imgSrc.split('?')[0];
-        return { mainImage, mainImageFull: imgSrc, mainImageCaption: img.attr('alt') || '' };
-      }
-    }
-    
+    // NO FALLBACK: If no proper article image found, return empty
+    // Don't use generic fs.mingpao.com selectors (they pick up weather icons, etc.)
     return { mainImage: '', mainImageFull: '', mainImageCaption: '' };
   }
 
