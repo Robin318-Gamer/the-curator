@@ -69,6 +69,17 @@ export default function AdminLanding() {
         ...prev,
         [action.title]: { state: 'success', message: 'Request accepted' },
       }));
+      
+      // Refresh metrics after automation action completes
+      try {
+        const metricsResponse = await fetch('/api/admin/metrics');
+        if (metricsResponse.ok) {
+          const metricsData = await metricsResponse.json();
+          setMetrics(metricsData);
+        }
+      } catch (err) {
+        console.error('Failed to refresh metrics after action:', err);
+      }
     } catch (error) {
       setStatus((prev) => ({
         ...prev,
